@@ -8,7 +8,7 @@
 //! `eframe` for rendering and handles all GUI-specific logic.
 
 use eframe::egui;
-use ferris_scan::{Node, ScanReport, Scanner, SharedProgress};
+use ferris_scan::{build_treemap, Node, ScanReport, Scanner, SharedProgress, TreemapRect};
 use std::{
     env,
     path::PathBuf,
@@ -265,7 +265,7 @@ impl eframe::App for FerrisScanApp {
                         self.selected_index = current_node.children.len() - 1;
                     }
 
-                    // Multi-pane layout: Tree | Details | Stats
+                    // Multi-pane layout: Tree | Details | Treemap & Stats
                     ui.horizontal(|ui| {
                         // Tree pane (left)
                         ui.vertical(|ui| {
@@ -342,22 +342,34 @@ impl eframe::App for FerrisScanApp {
 
                         ui.separator();
 
-                        // Stats pane (right)
+                        // Treemap & stats pane (right)
                         ui.vertical(|ui| {
-                            ui.heading("Progress & Stats");
+                            ui.heading("Treemap & Stats");
                             ui.separator();
-                            
-                            ui.label(egui::RichText::new("Scan Statistics").heading().color(egui::Color32::from_rgb(100, 200, 255)));
+
+                            render_treemap(ui, current_node);
+
+                            ui.add_space(8.0);
+
+                            ui.label(
+                                egui::RichText::new("Scan Statistics")
+                                    .heading()
+                                    .color(egui::Color32::from_rgb(100, 200, 255)),
+                            );
                             ui.add_space(5.0);
-                            
+
                             ui.label(format!("Total Size: {}", format_size(root.size)));
                             ui.label(format!("Skipped: {} entries", report.skipped.len()));
-                            
+
                             ui.add_space(10.0);
-                            
-                            ui.label(egui::RichText::new("Current Directory").heading().color(egui::Color32::from_rgb(100, 200, 255)));
+
+                            ui.label(
+                                egui::RichText::new("Current Directory")
+                                    .heading()
+                                    .color(egui::Color32::from_rgb(100, 200, 255)),
+                            );
                             ui.add_space(5.0);
-                            
+
                             ui.label(format!("Name: {}", current_node.name));
                             ui.label(format!("Size: {}", format_size(current_node.size)));
                             ui.label(format!("Items: {}", current_node.children.len()));
@@ -432,6 +444,139 @@ impl eframe::App for FerrisScanApp {
 
             if should_close {
                 self.popup_message = None;
+            }
+        }
+    }
+}
+
+// ============================================================================
+// TREEMAP RENDERING
+// ============================================================================
+
+fn render_treemap(ui: &mut egui::Ui, current_node: &Node) {
+    if current_node.children.is_empty() {
+        ui.label(egui::RichText::new("No items to visualize").italics());
+        return;
+    }
+
+    let available_size = ui.available_size();
+    if available_size.x <= 0.0 || available_size.y <= 0.0 {
+        return;
+    }
+
+    // Reserve a rectangle for the treemap and get a painter for it.
+    let (response, painter) = ui.allocate_painter(available_size, egui::Sense::hover());
+    let rect = response.rect;
+
+    // Build treemap using character/pixel units from egui.
+    let min_fraction = 0.01; // skip entries smaller than 1% of the directory
+    let children_to_use = &current_node.children;
+    let treemap: Vec<TreemapRect> =
+        build_treemap(children_to_use, rect.width(), rect.height(), min_fraction);
+
+    if treemap.is_empty() {
+        painter.text(
+            rect.center(),
+            egui::Align2::CENTER_CENTER,
+            "Treemap not available (too many tiny items)",
+            egui::TextStyle::Body.resolve(ui.style()),
+            egui::Color32::GRAY,
+        );
+        return;
+    }
+
+    let total_size: u64 = current_node.children.iter().map(|c| c.size).sum();
+
+    // Color palettes for directories and files - distinct colors that contrast well
+    let dir_colors: &[egui::Color32] = &[
+        egui::Color32::from_rgb(100, 150, 255), // Light blue
+        egui::Color32::from_rgb(80, 180, 220),  // Cyan-blue
+        egui::Color32::from_rgb(120, 200, 180), // Teal
+        egui::Color32::from_rgb(90, 170, 240),  // Sky blue
+        egui::Color32::from_rgb(110, 160, 200), // Steel blue
+    ];
+    let file_colors: &[egui::Color32] = &[
+        egui::Color32::from_rgb(255, 140, 100), // Coral
+        egui::Color32::from_rgb(255, 180, 80),   // Orange
+        egui::Color32::from_rgb(255, 160, 120),  // Peach
+        egui::Color32::from_rgb(240, 150, 90),   // Tan-orange
+        egui::Color32::from_rgb(255, 130, 110), // Salmon
+    ];
+
+    for r in treemap {
+        if let Some(child) = current_node.children.get(r.index) {
+            let child_rect = egui::Rect::from_min_size(
+                egui::pos2(rect.min.x + r.x, rect.min.y + r.y),
+                egui::vec2(r.w.max(1.0), r.h.max(1.0)),
+            );
+
+            // Select color from palette based on index to ensure adjacent items differ
+            let palette = if child.is_dir { dir_colors } else { file_colors };
+            let color_idx = r.index % palette.len();
+            let mut fill_color = palette[color_idx];
+            
+            // Slight brightness variation based on fraction for visual interest
+            let brightness_factor = 0.85 + (r.fraction * 0.3).min(0.15) as f32;
+            fill_color = egui::Color32::from_rgb(
+                (fill_color.r() as f32 * brightness_factor) as u8,
+                (fill_color.g() as f32 * brightness_factor) as u8,
+                (fill_color.b() as f32 * brightness_factor) as u8,
+            );
+
+            // Draw filled rectangle with a subtle border for separation
+            painter.rect_filled(child_rect, 0.0, fill_color);
+            painter.rect_stroke(child_rect, 0.0, egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(0, 0, 0, 60)));
+
+            // Draw a very short label if there's enough space.
+            let min_label_w = 40.0;
+            let min_label_h = 14.0;
+            if child_rect.width() > min_label_w && child_rect.height() > min_label_h {
+                let name = &child.name;
+                let truncated = if name.len() > 20 {
+                    format!("{}…", &name[..20])
+                } else {
+                    name.clone()
+                };
+                painter.text(
+                    child_rect.left_top() + egui::vec2(2.0, 2.0),
+                    egui::Align2::LEFT_TOP,
+                    truncated,
+                    egui::TextStyle::Small.resolve(ui.style()),
+                    egui::Color32::BLACK,
+                );
+            }
+
+            // Tooltip with full details on hover.
+            if response.hover_pos().map_or(false, |pos| child_rect.contains(pos)) {
+                let percent = if total_size > 0 {
+                    (child.size as f64 / total_size as f64) * 100.0
+                } else {
+                    0.0
+                };
+
+                let layer_id = egui::LayerId::new(
+                    egui::Order::Foreground,
+                    egui::Id::new("treemap_tooltip_layer"),
+                );
+                let tooltip_id = egui::Id::new(("treemap_tooltip", child.path.clone()));
+                let pos = child_rect.left_top();
+
+                egui::show_tooltip_at(
+                    ui.ctx(),
+                    layer_id,
+                    tooltip_id,
+                    pos,
+                    |ui: &mut egui::Ui| {
+                        ui.label(egui::RichText::new(&child.name).strong());
+                        ui.label(format!(
+                            "Type: {}",
+                            if child.is_dir { "Directory" } else { "File" }
+                        ));
+                        ui.label(format!("Size: {}", format_size(child.size)));
+                        ui.label(format!("Of directory: {:.2}%", percent));
+                        ui.label(format!("Path: {}", child.path.display()));
+                    },
+                );
             }
         }
     }

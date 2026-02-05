@@ -13,7 +13,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use ferris_scan::{Node, Scanner, ScanReport, SharedProgress};
+use ferris_scan::{build_treemap, Node, Scanner, ScanReport, SharedProgress, TreemapRect};
 use ratatui::{
     backend::{Backend, CrosstermBackend},
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -620,9 +620,9 @@ fn render_results(f: &mut Frame, area: Rect, root: &Node, report: &ScanReport, n
     let panes = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Percentage(40),
             Constraint::Percentage(35),
-            Constraint::Percentage(25),
+            Constraint::Percentage(35),
+            Constraint::Percentage(30),
         ])
         .split(main_chunks[1]);
 
@@ -632,10 +632,9 @@ fn render_results(f: &mut Frame, area: Rect, root: &Node, report: &ScanReport, n
         .unwrap_or(root);
     
     let selected_index = list_state.selected().unwrap_or(0);
-    let selected_item = current_node.children.get(selected_index);
 
     render_tree_pane(f, panes[0], current_node, list_state);
-    render_details_pane(f, panes[1], selected_item, current_node);
+    render_treemap_pane(f, panes[1], current_node, selected_index);
     render_stats_pane(f, panes[2], root, report, current_node);
 }
 
@@ -766,6 +765,136 @@ fn render_tree_pane(f: &mut Frame, area: Rect, current_node: &Node, list_state: 
     f.render_stateful_widget(list, chunks[1], list_state);
 }
 
+fn render_treemap_pane(f: &mut Frame, area: Rect, current_node: &Node, selected_index: usize) {
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title("Treemap View")
+        .border_style(Style::default().fg(Color::Cyan));
+
+    if current_node.children.is_empty() {
+        let paragraph = Paragraph::new("No items to visualize")
+            .block(block)
+            .alignment(Alignment::Center);
+        f.render_widget(paragraph, area);
+        return;
+    }
+
+    // inner area for drawing tiles
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    if inner.width == 0 || inner.height == 0 {
+        return;
+    }
+
+    let min_fraction = 0.01; // skip very small entries
+    let treemap: Vec<TreemapRect> = build_treemap(
+        &current_node.children,
+        inner.width as f32,
+        inner.height as f32,
+        min_fraction,
+    );
+
+    if treemap.is_empty() {
+        let paragraph = Paragraph::new("Treemap not available (too many tiny items)")
+            .alignment(Alignment::Center);
+        f.render_widget(paragraph, inner);
+        return;
+    }
+
+    let total_size: u64 = current_node.children.iter().map(|c| c.size).sum();
+
+    // color palettes for directories and files. highly distinct colors
+    // Using colors that are visually very different to prevent blending
+    let dir_colors: &[Color] = &[
+        Color::Blue,        // Dark blue
+        Color::Green,       // Green
+        Color::Cyan,        // Cyan
+        Color::Magenta,     // Magenta
+        Color::LightBlue,   // Light blue
+    ];
+    let file_colors: &[Color] = &[
+        Color::Red,         // Red
+        Color::Yellow,      // Yellow
+        Color::LightRed,    // Light red
+        Color::LightYellow, // Light yellow
+        Color::LightMagenta, // Light magenta
+    ];
+
+    for rect in treemap {
+        if let Some(child) = current_node.children.get(rect.index) {
+            // Map treemap coordinates to cell coordinates.
+            // Use floor for start and ceil for end, but ensure no overlap
+            let x0 = inner.x + rect.x.floor() as u16;
+            let y0 = inner.y + rect.y.floor() as u16;
+            let x1 = (inner.x + (rect.x + rect.w).floor() as u16).min(inner.x + inner.width);
+            let y1 = (inner.y + (rect.y + rect.h).floor() as u16).min(inner.y + inner.height);
+
+            if x0 >= x1 || y0 >= y1 {
+                continue;
+            }
+
+            let tile = Rect {
+                x: x0,
+                y: y0,
+                width: x1.saturating_sub(x0),
+                height: y1.saturating_sub(y0),
+            };
+
+            let is_selected = rect.index == selected_index;
+            // Select color from palette based on index to ensure adjacent items differ
+            let palette = if child.is_dir { dir_colors } else { file_colors };
+            let color_idx = rect.index % palette.len();
+            let bg_color = palette[color_idx];
+            
+            let base_style = Style::default().bg(bg_color);
+            let style = if is_selected {
+                base_style.add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
+            } else {
+                base_style
+            };
+
+            // Show a simple label in the top row of the tile if there's space
+            let mut lines: Vec<Line> = Vec::new();
+            if tile.height >= 1 && tile.width >= 6 {
+                let max_label_len = (tile.width as usize).saturating_sub(2);
+                let name = &child.name;
+                let truncated = if name.chars().count() > max_label_len {
+                    let mut s = String::new();
+                    for (i, ch) in name.chars().enumerate() {
+                        if i + 1 >= max_label_len {
+                            break;
+                        }
+                        s.push(ch);
+                    }
+                    s.push('…');
+                    s
+                } else {
+                    name.clone()
+                };
+
+                let percent = if total_size > 0 {
+                    (child.size as f64 / total_size as f64) * 100.0
+                } else {
+                    0.0
+                };
+
+                let label = format!("{} ({:.1}%)", truncated, percent);
+                // Use white text for better contrast on colored backgrounds
+                lines.push(Line::from(Span::styled(label, Style::default().fg(Color::White).add_modifier(Modifier::BOLD))));
+            }
+
+            // render without borders to avoid visual glitches
+            let widget = Paragraph::new(lines)
+                .style(style)
+                .wrap(Wrap { trim: true });
+
+            f.render_widget(widget, tile);
+        }
+    }
+}
+
+#[allow(dead_code)]
 fn render_details_pane(f: &mut Frame, area: Rect, selected_item: Option<&Node>, _current_node: &Node) {
     let details_text = if let Some(item) = selected_item {
         vec![

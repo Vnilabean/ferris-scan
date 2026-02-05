@@ -27,6 +27,7 @@ A high-performance disk usage analyzer for Windows, written in Rust. Designed as
 **Key Capabilities:**
 * **Parallel Traversal:** Multi-threaded scanning utilizing available CPU cores.
 * **Memory Efficiency:** Optimized tree structures to handle millions of files with low overhead.
+* **Treemap Visualization:** TreeSize-style view of space usage for the current directory in both TUI and GUI.
 * **Terminal UI:** A keyboard-driven TUI built with `ratatui` for headless or low-resource environments.
 * **No Runtime Dependencies:** Compiled native binary with no reliance on .NET or Electron.
 
@@ -99,6 +100,16 @@ Controls:
 * Arrow Keys: Navigate the file tree (In Progress)
 * E: Export results to CSV
 * Esc / Q: Quit
+
+### Visualizing Space Usage (Treemap)
+
+After a scan completes, both the TUI and GUI frontends show a **treemap pane** for the currently selected directory:
+
+- **Each tile** represents a child file or folder, sized by its disk usage.
+- **Colors** distinguish directories from files.
+- **Percentages** indicate how much of the current directory each item consumes.
+
+In the TUI, the treemap updates as you move the selection and drill up/down. In the GUI, the treemap updates as you browse using the tree view.
 
 CSV Export: The application generates a structured CSV file suitable for automation or analysis in Python/Excel.
 

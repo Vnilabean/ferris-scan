@@ -510,6 +510,130 @@ fn sort_tree(node: &mut Node) {
     }
 }
 
+/// Rectangle in a treemap representing a single child node.
+///
+/// Coordinates (`x`, `y`, `w`, `h`) are expressed in abstract units and should
+/// be interpreted by the caller (e.g. pixels for GUI, characters for TUI).
+#[derive(Debug, Clone, Copy)]
+pub struct TreemapRect {
+    /// Index into the original children slice.
+    pub index: usize,
+    /// Absolute size in bytes.
+    pub size: u64,
+    /// Fraction of the parent directory size in the range (0.0, 1.0].
+    pub fraction: f64,
+    /// Whether this entry represents a directory.
+    pub is_dir: bool,
+    /// X coordinate of the top-left corner.
+    pub x: f32,
+    /// Y coordinate of the top-left corner.
+    pub y: f32,
+    /// Width of the rectangle.
+    pub w: f32,
+    /// Height of the rectangle.
+    pub h: f32,
+}
+
+/// Build a simple slice-and-dice treemap for the children of a directory.
+///
+/// The algorithm partitions the given width/height rectangle into non-overlapping
+/// sub-rectangles whose areas are proportional to `Node::size`. Very small entries
+/// (with a size fraction below `min_fraction`) are skipped to avoid tiny slivers.
+///
+/// The returned rectangles have coordinates in the same units as `width`/`height`.
+pub fn build_treemap(children: &[Node], width: f32, height: f32, min_fraction: f64) -> Vec<TreemapRect> {
+    let mut rects = Vec::new();
+
+    if width <= 0.0 || height <= 0.0 {
+        return rects;
+    }
+
+    let total_size: u64 = children.iter().map(|c| c.size).sum();
+    if total_size == 0 {
+        return rects;
+    }
+
+    // First compute fractions and filter out extremely small entries.
+    let mut items: Vec<(usize, &Node, f64)> = children
+        .iter()
+        .enumerate()
+        .map(|(idx, node)| {
+            let fraction = node.size as f64 / total_size as f64;
+            (idx, node, fraction)
+        })
+        .filter(|(_, _, fraction)| *fraction >= min_fraction)
+        .collect();
+
+    if items.is_empty() {
+        return rects;
+    }
+
+    // Normalize fractions of remaining items so they sum to 1.0.
+    let sum_fraction: f64 = items.iter().map(|(_, _, f)| *f).sum();
+    if sum_fraction == 0.0 {
+        return rects;
+    }
+
+    for (_, _, fraction) in &mut items {
+        *fraction /= sum_fraction;
+    }
+
+    let horizontal = width >= height;
+
+    let mut cursor_x = 0.0f32;
+    let mut cursor_y = 0.0f32;
+    let mut remaining_width = width;
+    let mut remaining_height = height;
+
+    for (idx, node, fraction) in items {
+        if horizontal {
+            // vertical slices across the width.
+            let slice_width = (width as f64 * fraction) as f32;
+            let w = slice_width.min(remaining_width);
+            if w <= 0.0 {
+                continue;
+            }
+
+            rects.push(TreemapRect {
+                index: idx,
+                size: node.size,
+                fraction,
+                is_dir: node.is_dir,
+                x: cursor_x,
+                y: cursor_y,
+                w,
+                h: remaining_height,
+            });
+
+            cursor_x += w;
+            remaining_width = (width - cursor_x).max(0.0);
+        } else {
+            // Horizontal slices across the height.
+            let slice_height = (height as f64 * fraction) as f32;
+            let h = slice_height.min(remaining_height);
+            if h <= 0.0 {
+                continue;
+            }
+
+            rects.push(TreemapRect {
+                index: idx,
+                size: node.size,
+                fraction,
+                is_dir: node.is_dir,
+                x: cursor_x,
+                y: cursor_y,
+                w: remaining_width,
+                h,
+            });
+
+            cursor_y += h;
+            remaining_height = (height - cursor_y).max(0.0);
+        }
+    }
+
+    rects
+}
+
 // ============================================================================
 // TESTS
 // ============================================================================
