@@ -534,13 +534,21 @@ pub struct TreemapRect {
     pub h: f32,
 }
 
-/// Build a simple slice-and-dice treemap for the children of a directory.
+/// Worst aspect ratio of a rectangle (1.0 = square).
+#[inline]
+fn aspect_ratio(w: f32, h: f32) -> f32 {
+    if w <= 0.0 || h <= 0.0 {
+        return f32::MAX;
+    }
+    let r = w / h;
+    r.max(1.0 / r)
+}
+
+/// Build a squarified treemap so boxes stack in a 2D grid (TreeSize-style).
 ///
-/// The algorithm partitions the given width/height rectangle into non-overlapping
-/// sub-rectangles whose areas are proportional to `Node::size`. Very small entries
-/// (with a size fraction below `min_fraction`) are skipped to avoid tiny slivers.
-///
-/// The returned rectangles have coordinates in the same units as `width`/`height`.
+/// Uses a squarified layout: repeatedly fills a row or column with items,
+/// then continues in the remaining space, producing a mix of horizontal
+/// and vertical stacking.
 pub fn build_treemap(children: &[Node], width: f32, height: f32, min_fraction: f64) -> Vec<TreemapRect> {
     let mut rects = Vec::new();
 
@@ -553,7 +561,6 @@ pub fn build_treemap(children: &[Node], width: f32, height: f32, min_fraction: f
         return rects;
     }
 
-    // First compute fractions and filter out extremely small entries.
     let mut items: Vec<(usize, &Node, f64)> = children
         .iter()
         .enumerate()
@@ -568,7 +575,6 @@ pub fn build_treemap(children: &[Node], width: f32, height: f32, min_fraction: f
         return rects;
     }
 
-    // Normalize fractions of remaining items so they sum to 1.0.
     let sum_fraction: f64 = items.iter().map(|(_, _, f)| *f).sum();
     if sum_fraction == 0.0 {
         return rects;
@@ -578,59 +584,123 @@ pub fn build_treemap(children: &[Node], width: f32, height: f32, min_fraction: f
         *fraction /= sum_fraction;
     }
 
-    let horizontal = width >= height;
+    // Squarified layout: fill (x, y, w, h) with items from start.. end
+    fn squarify(
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+        items: &[(usize, &Node, f64)],
+        start: usize,
+        rects: &mut Vec<TreemapRect>,
+    ) {
+        if start >= items.len() || w <= 0.0 || h <= 0.0 {
+            return;
+        }
 
-    let mut cursor_x = 0.0f32;
-    let mut cursor_y = 0.0f32;
-    let mut remaining_width = width;
-    let mut remaining_height = height;
+        let rest_sum: f64 = items[start..].iter().map(|(_, _, f)| *f).sum();
+        if rest_sum <= 0.0 {
+            return;
+        }
 
-    for (idx, node, fraction) in items {
-        if horizontal {
-            // vertical slices across the width.
-            let slice_width = (width as f64 * fraction) as f32;
-            let w = slice_width.min(remaining_width);
-            if w <= 0.0 {
+        let horizontal = w >= h; // lay a row along the longer side
+
+        // Find k: take items start..start+k so that worst aspect ratio in batch is minimized
+        let mut k = 1usize;
+        let mut best_worst = f32::MAX;
+
+        for i in (start + 1)..=items.len() {
+            let batch_sum: f64 = items[start..i].iter().map(|(_, _, f)| *f).sum();
+            if batch_sum <= 0.0 {
                 continue;
             }
 
-            rects.push(TreemapRect {
-                index: idx,
-                size: node.size,
-                fraction,
-                is_dir: node.is_dir,
-                x: cursor_x,
-                y: cursor_y,
-                w,
-                h: remaining_height,
-            });
+            let mut worst_ar = 0.0f32;
+            for j in start..i {
+                let f = items[j].2;
+                let (cell_w, cell_h) = if horizontal {
+                    let row_h = h * (batch_sum as f32);
+                    (w * (f as f32) / (batch_sum as f32), row_h)
+                } else {
+                    let col_w = w * (batch_sum as f32);
+                    (col_w, h * (f as f32) / (batch_sum as f32))
+                };
+                worst_ar = aspect_ratio(cell_w, cell_h).max(worst_ar);
+            }
 
-            cursor_x += w;
-            remaining_width = (width - cursor_x).max(0.0);
+            if worst_ar <= best_worst {
+                best_worst = worst_ar;
+                k = i - start;
+            } else {
+                break;
+            }
+        }
+
+        let batch_sum: f64 = items[start..start + k].iter().map(|(_, _, f)| *f).sum();
+        if batch_sum <= 0.0 {
+            return;
+        }
+
+        let (sub_w, sub_h) = if horizontal {
+            (w, h * (batch_sum as f32))
         } else {
-            // Horizontal slices across the height.
-            let slice_height = (height as f64 * fraction) as f32;
-            let h = slice_height.min(remaining_height);
-            if h <= 0.0 {
-                continue;
-            }
+            (w * (batch_sum as f32), h)
+        };
+
+        let mut cursor = 0.0f32;
+        for j in start..(start + k) {
+            let (idx, node, f) = items[j];
+            let frac = f / batch_sum;
+
+            let (rx, ry, rw, rh) = if horizontal {
+                let slice_w = sub_w * (frac as f32);
+                (
+                    x + cursor,
+                    y,
+                    slice_w,
+                    sub_h,
+                )
+            } else {
+                let slice_h = sub_h * (frac as f32);
+                (
+                    x,
+                    y + cursor,
+                    sub_w,
+                    slice_h,
+                )
+            };
 
             rects.push(TreemapRect {
                 index: idx,
                 size: node.size,
-                fraction,
+                fraction: items[j].2,
                 is_dir: node.is_dir,
-                x: cursor_x,
-                y: cursor_y,
-                w: remaining_width,
-                h,
+                x: rx,
+                y: ry,
+                w: rw,
+                h: rh,
             });
 
-            cursor_y += h;
-            remaining_height = (height - cursor_y).max(0.0);
+            if horizontal {
+                cursor += sub_w * (frac as f32);
+            } else {
+                cursor += sub_h * (frac as f32);
+            }
+        }
+
+        // Remaining rectangle and items
+        let (next_x, next_y, next_w, next_h) = if horizontal {
+            (x, y + sub_h, w, h - sub_h)
+        } else {
+            (x + sub_w, y, w - sub_w, h)
+        };
+
+        if next_w > 0.0 && next_h > 0.0 {
+            squarify(next_x, next_y, next_w, next_h, items, start + k, rects);
         }
     }
 
+    squarify(0.0, 0.0, width, height, &items, 0, &mut rects);
     rects
 }
 
