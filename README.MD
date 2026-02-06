@@ -138,6 +138,16 @@ Documents\Logs,Logs,Directory,102400
     [ ] v0.3: Direct NTFS MFT Parsing (Driver-level scanning)
 
     [ ] v0.4: Linux/macOS compatibility polish
+
+    [ ] v0.x: GUI Overhaul (Modern theme, Vector icons, Better layout)
+
+    [ ] v0.x: Sunburst Chart Visualization
+
+    [ ] v0.x: File Search & Filter
+
+    [ ] v0.x: Stale File Analysis (Heatmap)
+
+    [ ] v0.x: File Type Breakdown (Pie Chart)
 ```
 
 ## License

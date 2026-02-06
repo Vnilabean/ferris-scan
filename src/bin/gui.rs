@@ -147,12 +147,13 @@ impl FerrisScanApp {
             match scanner.export_csv(root, &output_path) {
                 Ok(_) => {
                     self.popup_message = Some(format!(
-                        "Export successful!\n\nSaved to:\n{}",
+                        "{} Export successful!\n\nSaved to:\n{}",
+                        egui_phosphor::regular::CHECK,
                         output_path.display()
                     ));
                 }
                 Err(e) => {
-                    self.popup_message = Some(format!("Export failed:\n{}", e));
+                    self.popup_message = Some(format!("{} Export failed:\n{}", egui_phosphor::regular::X, e));
                 }
             }
         }
@@ -219,7 +220,7 @@ impl eframe::App for FerrisScanApp {
                         .and_then(|g| g.as_ref().map(|p| p.display().to_string()))
                         .unwrap_or_else(|| "Starting...".to_string());
 
-                    ui.label(format!("⟳ Scanning in progress..."));
+                    ui.label(format!("{} Scanning in progress...", egui_phosphor::regular::ARROWS_CLOCKWISE));
                     ui.label(format!("Files scanned: {}", files));
                     ui.add_space(5.0);
                     ui.label("Current path:");
@@ -249,7 +250,7 @@ impl eframe::App for FerrisScanApp {
                         ui.label(egui::RichText::new(&breadcrumb).color(egui::Color32::from_rgb(100, 200, 255)));
                         
                         if can_go_up {
-                            if ui.button("← Go Up").clicked() {
+                            if ui.button(format!("{} Go Up", egui_phosphor::regular::ARROW_LEFT)).clicked() {
                                 should_drill_up = true;
                             }
                         }
@@ -265,85 +266,70 @@ impl eframe::App for FerrisScanApp {
                         self.selected_index = current_node.children.len() - 1;
                     }
 
-                    // Multi-pane layout: Tree | Details | Treemap & Stats
-                    ui.horizontal(|ui| {
-                        // Tree pane (left)
-                        ui.vertical(|ui| {
+                    // Multi-pane layout: Tree (Table) | Details | Treemap & Stats
+                    // Use resizeable panels for better control
+                    
+                    egui::SidePanel::left("tree_panel")
+                        .resizable(true)
+                        .default_width(400.0)
+                        .width_range(300.0..=600.0)
+                        .show_inside(ui, |ui| {
                             ui.heading("Tree View");
                             ui.separator();
                             
-                            egui::ScrollArea::vertical()
-                                .max_height(400.0)
-                                .show(ui, |ui| {
+                            use egui_extras::{TableBuilder, Column};
+                            
+                            TableBuilder::new(ui)
+                                .striped(true)
+                                .resizable(true)
+                                .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+                                .column(Column::initial(300.0).at_least(100.0).resizable(true)) // Name
+                                .column(Column::initial(80.0).resizable(true))  // Size
+                                .column(Column::remainder()) // type icon
+                                .header(20.0, |mut header| {
+                                    header.col(|ui| { ui.strong("Name"); });
+                                    header.col(|ui| { ui.strong("Size"); });
+                                    header.col(|ui| { ui.strong("Type"); });
+                                })
+                                .body(|mut body| {
                                     for (idx, child) in current_node.children.iter().enumerate() {
-                                        let icon = if child.is_dir { "📁" } else { "📄" };
-                                        let is_selected = idx == self.selected_index;
-                                        
-                                        ui.horizontal(|ui| {
-                                            let label_text = format!("{} {}", icon, child.name);
+                                        body.row(20.0, |mut row| {
+                                            let is_selected = idx == self.selected_index;
                                             
-                                            if is_selected {
-                                                ui.visuals_mut().selection.bg_fill = egui::Color32::from_rgb(255, 255, 0);
-                                            }
-                                            
-                                            let response = if child.is_dir {
-                                                ui.selectable_label(is_selected, label_text)
-                                            } else {
-                                                ui.selectable_label(is_selected, label_text)
-                                            };
-                                            
-                                            if response.clicked() {
-                                                self.selected_index = idx;
-                                                if child.is_dir {
-                                                    should_drill_down = Some(child.clone());
+                                            // Name column
+                                            row.col(|ui| {
+                                                let icon = if child.is_dir { egui_phosphor::regular::FOLDER } else { egui_phosphor::regular::FILE };
+                                                let label = ui.selectable_label(
+                                                    is_selected, 
+                                                    format!("{} {}", icon, child.name)
+                                                );
+                                                
+                                                if label.clicked() {
+                                                    self.selected_index = idx;
+                                                    if child.is_dir {
+                                                        should_drill_down = Some(child.clone());
+                                                    }
                                                 }
-                                            }
+                                            });
                                             
-                                            ui.with_layout(
-                                                egui::Layout::right_to_left(egui::Align::Center),
-                                                |ui| {
-                                                    ui.label(format_size(child.size));
-                                                },
-                                            );
+                                            // Size column
+                                            row.col(|ui| {
+                                                ui.label(format_size(child.size));
+                                            });
+                                            
+                                            // Type/Icon column
+                                            row.col(|ui| {
+                                                ui.label(if child.is_dir { "DIR" } else { "FILE" });
+                                            });
                                         });
                                     }
                                 });
                         });
 
-                        ui.separator();
-
-                        // Details pane (middle)
-                        ui.vertical(|ui| {
-                            ui.heading("Details");
-                            ui.separator();
-                            
-                            if let Some(selected_item) = current_node.children.get(self.selected_index) {
-                                ui.label(egui::RichText::new("Selected Item Details").heading().color(egui::Color32::from_rgb(100, 200, 255)));
-                                ui.add_space(5.0);
-                                
-                                ui.label(format!("Name: {}", selected_item.name));
-                                ui.label(format!("Type: {}", if selected_item.is_dir { "Directory" } else { "File" }));
-                                ui.label(format!("Size: {}", format_size(selected_item.size)));
-                                ui.add_space(5.0);
-                                
-                                ui.label(egui::RichText::new("Path:").strong());
-                                ui.label(egui::RichText::new(selected_item.path.display().to_string()).color(egui::Color32::from_rgb(255, 255, 0)));
-                                
-                                if selected_item.is_dir {
-                                    ui.add_space(5.0);
-                                    ui.label(format!("Children: {} items", selected_item.children.len()));
-                                }
-                            } else {
-                                ui.label(egui::RichText::new("No item selected").italics().color(egui::Color32::GRAY));
-                                ui.add_space(5.0);
-                                ui.label("Click an item in the tree to view details.");
-                            }
-                        });
-
-                        ui.separator();
-
-                        // Treemap & stats pane (right)
-                        ui.vertical(|ui| {
+                    egui::SidePanel::right("stats_panel")
+                        .resizable(true)
+                        .default_width(300.0)
+                        .show_inside(ui, |ui| {
                             ui.heading("Treemap & Stats");
                             ui.separator();
 
@@ -374,6 +360,46 @@ impl eframe::App for FerrisScanApp {
                             ui.label(format!("Size: {}", format_size(current_node.size)));
                             ui.label(format!("Items: {}", current_node.children.len()));
                         });
+
+                    // Middle details panel
+                    egui::CentralPanel::default().show_inside(ui, |ui| {
+                        ui.heading("Details");
+                        ui.separator();
+                        
+                        if let Some(selected_item) = current_node.children.get(self.selected_index) {
+                            ui.label(egui::RichText::new("Selected Item Details").heading().color(egui::Color32::from_rgb(100, 200, 255)));
+                            ui.add_space(5.0);
+                            
+                            ui.horizontal(|ui| {
+                                ui.label(egui::RichText::new("Name:").strong());
+                                ui.label(&selected_item.name);
+                            });
+                            
+                            ui.horizontal(|ui| {
+                                ui.label(egui::RichText::new("Type:").strong());
+                                ui.label(if selected_item.is_dir { "Directory" } else { "File" });
+                            });
+                            
+                            ui.horizontal(|ui| {
+                                ui.label(egui::RichText::new("Size:").strong());
+                                ui.label(format_size(selected_item.size));
+                            });
+
+                            ui.add_space(5.0);
+                            ui.label(egui::RichText::new("Path:").strong());
+                            ui.label(egui::RichText::new(selected_item.path.display().to_string())
+                                .color(egui::Color32::from_rgb(255, 255, 0))
+                                .monospace());
+                            
+                            if selected_item.is_dir {
+                                ui.add_space(5.0);
+                                ui.label(format!("Children: {} items", selected_item.children.len()));
+                            }
+                        } else {
+                            ui.label(egui::RichText::new("No item selected").italics().color(egui::Color32::GRAY));
+                            ui.add_space(5.0);
+                            ui.label("Click an item in the tree to view details.");
+                        }
                     });
 
                     ui.add_space(10.0);
@@ -390,7 +416,7 @@ impl eframe::App for FerrisScanApp {
                     });
                 }
                 ScanStatus::Error(err) => {
-                    ui.colored_label(egui::Color32::RED, format!("✗ Error: {}", err));
+                    ui.colored_label(egui::Color32::RED, format!("{} Error: {}", egui_phosphor::regular::X, err));
                     ui.add_space(10.0);
 
                     if ui.button("Try Again").clicked() {
@@ -554,29 +580,43 @@ fn render_treemap(ui: &mut egui::Ui, current_node: &Node) {
                     0.0
                 };
 
-                let layer_id = egui::LayerId::new(
-                    egui::Order::Foreground,
-                    egui::Id::new("treemap_tooltip_layer"),
-                );
                 let tooltip_id = egui::Id::new(("treemap_tooltip", child.path.clone()));
-                let pos = child_rect.left_top();
+                let hover_pos = ui.input(|i| i.pointer.hover_pos().unwrap_or(child_rect.left_top()));
+                let screen_rect = ui.ctx().screen_rect();
+                
+                // divide screen into quadrants
+                let is_right_half = hover_pos.x > screen_rect.center().x;
+                let is_bottom_half = hover_pos.y > screen_rect.center().y;
+                
+                // Determine pivot and offset
+                let (pivot, offset) = match (is_right_half, is_bottom_half) {
+                    (false, false) => (egui::Align2::LEFT_TOP,     egui::vec2(16.0, 16.0)),   // Top-Left cursor -> Pivot TL (Grow Down-Right)
+                    (true, false)  => (egui::Align2::RIGHT_TOP,    egui::vec2(-16.0, 16.0)),  // Top-Right cursor -> Pivot TR (Grow Down-Left)
+                    (false, true)  => (egui::Align2::LEFT_BOTTOM,  egui::vec2(16.0, -16.0)),  // Bottom-Left cursor -> Pivot BL (Grow Up-Right)
+                    (true, true)   => (egui::Align2::RIGHT_BOTTOM, egui::vec2(-16.0, -16.0)), // Bottom-Right cursor -> Pivot BR (Grow Up-Left)
+                };
+                
+                let tooltip_pos = hover_pos + offset;
 
-                egui::show_tooltip_at(
-                    ui.ctx(),
-                    layer_id,
-                    tooltip_id,
-                    pos,
-                    |ui: &mut egui::Ui| {
-                        ui.label(egui::RichText::new(&child.name).strong());
-                        ui.label(format!(
-                            "Type: {}",
-                            if child.is_dir { "Directory" } else { "File" }
-                        ));
-                        ui.label(format!("Size: {}", format_size(child.size)));
-                        ui.label(format!("Of directory: {:.2}%", percent));
-                        ui.label(format!("Path: {}", child.path.display()));
-                    },
-                );
+                egui::Area::new(tooltip_id)
+                    .order(egui::Order::Tooltip)
+                    .interactable(false)
+                    .fixed_pos(tooltip_pos)
+                    .pivot(pivot) // Use pivot to control growth direction
+                    .show(ui.ctx(), |ui| {
+                         egui::Frame::popup(ui.style()).show(ui, |ui| {
+                            ui.set_max_width(300.0);
+                            
+                            ui.label(egui::RichText::new(&child.name).strong());
+                            ui.label(format!(
+                                "Type: {}",
+                                if child.is_dir { "Directory" } else { "File" }
+                            ));
+                            ui.label(format!("Size: {}", format_size(child.size)));
+                            ui.label(format!("Of directory: {:.2}%", percent));
+                            ui.label(format!("Path: {}", child.path.display()));
+                         });
+                    });
             }
         }
     }
@@ -596,15 +636,20 @@ fn main() -> eframe::Result<()> {
 
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([800.0, 600.0])
-            .with_min_inner_size([400.0, 300.0]),
+            .with_inner_size([1000.0, 700.0])
+            .with_min_inner_size([400.0, 300.0])
+            .with_transparent(false),
         ..Default::default()
     };
 
     eframe::run_native(
         "ferris-scan",
         options,
-        Box::new(|_cc| Ok(Box::new(FerrisScanApp::new(initial_path)))),
+        Box::new(|cc| {
+            setup_custom_fonts(&cc.egui_ctx);
+            setup_custom_theme(&cc.egui_ctx);
+            Ok(Box::new(FerrisScanApp::new(initial_path)))
+        }),
     )
 }
 
@@ -627,4 +672,50 @@ fn format_size(bytes: u64) -> String {
     } else {
         format!("{:.2} {}", size, UNITS[unit_idx])
     }
+}
+
+// ============================================================================
+// THEME & FONTS
+// ============================================================================
+
+fn setup_custom_fonts(ctx: &egui::Context) {
+    let mut fonts = egui::FontDefinitions::default();
+    
+    egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
+    
+    ctx.set_fonts(fonts);
+}
+
+fn setup_custom_theme(ctx: &egui::Context) {
+    let mut visuals = egui::Visuals::dark();
+    visuals.window_rounding = egui::Rounding::same(8.0);
+    visuals.menu_rounding = egui::Rounding::same(6.0);
+    
+    // Modern Dark Theme Palette
+    // Backgrounds
+    visuals.panel_fill = egui::Color32::from_rgb(20, 20, 26);
+    visuals.window_fill = egui::Color32::from_rgb(20, 20, 26);
+    
+    // Borders
+    visuals.widgets.noninteractive.bg_fill = egui::Color32::from_rgb(28, 28, 36);
+    visuals.widgets.noninteractive.bg_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(40, 40, 50));
+    
+    visuals.widgets.inactive.rounding = egui::Rounding::same(6.0);
+    visuals.widgets.inactive.bg_fill = egui::Color32::from_rgb(35, 35, 45);
+    visuals.widgets.inactive.fg_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(200, 200, 210));
+    
+    visuals.widgets.hovered.rounding = egui::Rounding::same(6.0);
+    visuals.widgets.hovered.bg_fill = egui::Color32::from_rgb(45, 45, 55);
+    visuals.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(100, 150, 255));
+    visuals.widgets.hovered.fg_stroke = egui::Stroke::new(1.0, egui::Color32::WHITE);
+    
+    visuals.widgets.active.rounding = egui::Rounding::same(6.0);
+    visuals.widgets.active.bg_fill = egui::Color32::from_rgb(60, 60, 80);
+    visuals.widgets.active.bg_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(100, 150, 255));
+    
+    // Selection
+    visuals.selection.bg_fill = egui::Color32::from_rgb(60, 100, 220); // Vivid Blue
+    visuals.selection.stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(150, 200, 255));
+    
+    ctx.set_visuals(visuals);
 }
