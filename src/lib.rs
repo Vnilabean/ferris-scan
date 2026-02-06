@@ -603,7 +603,7 @@ pub fn build_treemap(children: &[Node], width: f32, height: f32, min_fraction: f
             return;
         }
 
-        let horizontal = w >= h; // lay a row along the longer side
+        let horizontal = w < h;
 
         // Find k: take items start..start+k so that worst aspect ratio in batch is minimized
         let mut k = 1usize;
@@ -618,34 +618,38 @@ pub fn build_treemap(children: &[Node], width: f32, height: f32, min_fraction: f
             let mut worst_ar = 0.0f32;
             for j in start..i {
                 let f = items[j].2;
+                let scale = (batch_sum / rest_sum) as f32;
                 let (cell_w, cell_h) = if horizontal {
-                    let row_h = h * (batch_sum as f32);
+                    let row_h = h * scale;
                     (w * (f as f32) / (batch_sum as f32), row_h)
                 } else {
-                    let col_w = w * (batch_sum as f32);
+                    let col_w = w * scale;
                     (col_w, h * (f as f32) / (batch_sum as f32))
                 };
                 worst_ar = aspect_ratio(cell_w, cell_h).max(worst_ar);
             }
 
-            if worst_ar <= best_worst {
-                best_worst = worst_ar;
-                k = i - start;
-            } else {
-                break;
-            }
-        }
-
-        let batch_sum: f64 = items[start..start + k].iter().map(|(_, _, f)| *f).sum();
-        if batch_sum <= 0.0 {
-            return;
-        }
-
-        let (sub_w, sub_h) = if horizontal {
-            (w, h * (batch_sum as f32))
+        if worst_ar <= best_worst {
+            best_worst = worst_ar;
+            k = i - start;
         } else {
-            (w * (batch_sum as f32), h)
-        };
+            break;
+        }
+    }
+
+    let batch_sum: f64 = items[start..start + k].iter().map(|(_, _, f)| *f).sum();
+    if batch_sum <= 0.0 {
+        return;
+    }
+    
+    // normalize ratio against the REMAINING sum to fill the remaining space fully
+    let scale = (batch_sum / rest_sum) as f32;
+
+    let (sub_w, sub_h) = if horizontal {
+        (w, h * scale)
+    } else {
+        (w * scale, h)
+    };
 
         let mut cursor = 0.0f32;
         for j in start..(start + k) {
