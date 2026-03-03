@@ -525,7 +525,7 @@ impl eframe::App for FerrisScanApp {
                             .resizable(true)
                             .default_width(300.0)
                             .show_inside(ui, |ui| {
-                                ui.heading("Treemap & Stats");
+                                ui.heading("Treemap");
                                 ui.separator();
 
                                 if let Some((clicked_index, is_double)) =
@@ -560,50 +560,11 @@ impl eframe::App for FerrisScanApp {
                                         .weak(),
                                     );
                                 }
-
-                                ui.add_space(8.0);
-
-                                ui.label(
-                                    egui::RichText::new("Scan Statistics")
-                                        .heading()
-                                        .color(accent_color),
-                                );
-                                ui.add_space(5.0);
-
-                                ui.label(format!(
-                                    "Total Size: {}",
-                                    format_size(root.size)
-                                ));
-                                ui.label(format!(
-                                    "Skipped: {} entries",
-                                    report.skipped.len()
-                                ));
-
-                                ui.add_space(10.0);
-
-                                ui.label(
-                                    egui::RichText::new("Current Directory")
-                                        .heading()
-                                        .color(accent_color),
-                                );
-                                ui.add_space(5.0);
-
-                                ui.label(format!(
-                                    "Name: {}",
-                                    current_node.name
-                                ));
-                                ui.label(format!(
-                                    "Size: {}",
-                                    format_size(current_node.size)
-                                ));
-                                ui.label(format!(
-                                    "Items: {}",
-                                    current_node.children.len()
-                                ));
                             });
 
-                        // Middle details panel
+                        // Middle details + statistics panel
                         egui::CentralPanel::default().show_inside(ui, |ui| {
+                            // Details section (top half)
                             ui.heading("Details");
                             ui.separator();
 
@@ -677,6 +638,46 @@ impl eframe::App for FerrisScanApp {
                                     "Click an item in the tree to view details.",
                                 );
                             }
+
+                            // Scan statistics section (bottom half)
+                            ui.add_space(12.0);
+                            ui.separator();
+                            ui.add_space(4.0);
+
+                            ui.label(
+                                egui::RichText::new("Scan Statistics")
+                                    .heading()
+                                    .color(accent_color),
+                            );
+                            ui.add_space(5.0);
+
+                            ui.label(format!(
+                                "Total Size: {}",
+                                format_size(root.size)
+                            ));
+                            ui.label(format!(
+                                "Skipped: {} entries",
+                                report.skipped.len()
+                            ));
+
+                            ui.add_space(10.0);
+
+                            ui.label(
+                                egui::RichText::new("Current Directory")
+                                    .heading()
+                                    .color(accent_color),
+                            );
+                            ui.add_space(5.0);
+
+                            ui.label(format!("Name: {}", current_node.name));
+                            ui.label(format!(
+                                "Size: {}",
+                                format_size(current_node.size)
+                            ));
+                            ui.label(format!(
+                                "Items: {}",
+                                current_node.children.len()
+                            ));
                         });
                     });
                 }
@@ -773,6 +774,7 @@ fn render_treemap(
     }
 
     // Reserve a rectangle for the treemap and get a painter for it.
+    // This consumes the remaining space in the right panel.
     let (response, painter) =
         ui.allocate_painter(available_size, egui::Sense::click());
     let rect = response.rect;

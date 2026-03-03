@@ -14,6 +14,8 @@ A high-performance disk usage analyzer for Windows, written in Rust. Designed as
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows-gray)](https://www.microsoft.com/windows)
 [![Sponsor](https://img.shields.io/badge/Sponsor-GitHub-pink)](https://github.com/sponsors/vnilabean)
+[![Get it on itch.io](https://img.shields.io/badge/Download%20on-itch.io-orange?logo=itch-io&style=for-the-badge)](https://vnilabean.itch.io/ferris-scan)
+
 
 [![Buy Me a Coffee](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/vnilabean)
 
@@ -45,7 +47,7 @@ A high-performance disk usage analyzer for Windows, written in Rust. Designed as
 ### Option A: Pre-built Installer (Recommended)
 For users who want a signed Windows installer with automatic updates.
 
-[**Download Installer ($5)**](https://ferris-scan.lemonsqueezy.com)
+[**Download Installer ($5)**](https://vnilabean.itch.io/ferris-scan)
 
 *Proceeds support development and maintenance.*
 
