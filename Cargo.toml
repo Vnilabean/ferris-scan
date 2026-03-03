@@ -68,7 +68,6 @@ crossterm = "0.29.0"
 eframe = "0.33.3"
 egui_extras = { version = "0.33.3", features = ["all_loaders"] }
 egui-phosphor = "0.11.0"
-mft = "0.7.0"
 rfd = "0.17.2"
 
 [dev-dependencies]

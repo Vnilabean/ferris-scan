@@ -414,19 +414,23 @@ impl eframe::App for FerrisScanApp {
                                                 };
 
                                                 // Truncate very long names so they don't
-                                                // break the layout.
+                                                // break the layout, while remaining UTF-8 safe.
                                                 let name = &child.name;
                                                 let max_len = 40;
-                                                let truncated = if name.len()
-                                                    > max_len
-                                                {
-                                                    format!(
-                                                        "{}…",
-                                                        &name[..max_len]
-                                                    )
+                                                let mut truncated = String::new();
+                                                let mut chars = name.chars();
+                                                for _ in 0..max_len {
+                                                    if let Some(ch) = chars.next() {
+                                                        truncated.push(ch);
+                                                    } else {
+                                                        break;
+                                                    }
+                                                }
+                                                if chars.next().is_some() {
+                                                    truncated.push('…');
                                                 } else {
-                                                    name.clone()
-                                                };
+                                                    truncated = name.clone();
+                                                }
 
                                                 let label = ui
                                                     .selectable_label(
@@ -861,16 +865,26 @@ fn render_treemap(
                 egui::StrokeKind::Inside,
             );
 
-            // Draw a very short label if there's enough space.
+            // Draw a very short label if there's enough space (UTF-8 safe truncation).
             let min_label_w = 40.0;
             let min_label_h = 14.0;
             if child_rect.width() > min_label_w && child_rect.height() > min_label_h {
                 let name = &child.name;
-                let truncated = if name.len() > 20 {
-                    format!("{}…", &name[..20])
+                let max_len = 20;
+                let mut truncated = String::new();
+                let mut chars = name.chars();
+                for _ in 0..max_len {
+                    if let Some(ch) = chars.next() {
+                        truncated.push(ch);
+                    } else {
+                        break;
+                    }
+                }
+                if chars.next().is_some() {
+                    truncated.push('…');
                 } else {
-                    name.clone()
-                };
+                    truncated = name.clone();
+                }
                 painter.text(
                     child_rect.left_top() + egui::vec2(2.0, 2.0),
                     egui::Align2::LEFT_TOP,
