@@ -1,6 +1,6 @@
 [package]
 name = "ferris-scan"
-version = "0.18.0"
+version = "0.25.0"
 edition = "2021"
 authors = ["vnilabean"]
 description = "A blazingly fast disk usage analyzer written in Rust"
@@ -51,11 +51,11 @@ jwalk = "0.8.1"
 rayon = "1.11.0"
 
 # Error handling
-anyhow = "1.0.100"
+anyhow = "1.0.102"
 
 # Pro-only dependencies (gated behind 'pro' feature)
 serde = { version = "1.0.228", features = ["derive"], optional = true }
-csv = { version = "1.3.1", optional = true }
+csv = { version = "1.4.0", optional = true }
 
 # ============================================================================
 # FRONTEND DEPENDENCIES
@@ -65,13 +65,14 @@ ratatui = "0.30.0"
 crossterm = "0.29.0"
 
 # GUI dependencies (used by bin/gui.rs)
-eframe = "0.29.1"
-egui_extras = { version = "0.29.1", features = ["all_loaders"] }
-egui-phosphor = "0.7.1"
+eframe = "0.33.3"
+egui_extras = { version = "0.33.3", features = ["all_loaders"] }
+egui-phosphor = "0.11.0"
 mft = "0.7.0"
+rfd = "0.17.2"
 
 [dev-dependencies]
-tempfile = "3.24.0"
+tempfile = "3.26.0"
 
 [profile.release]
 lto = true

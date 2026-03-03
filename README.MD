@@ -12,7 +12,6 @@
 A high-performance disk usage analyzer for Windows, written in Rust. Designed as a lightweight, multi-threaded alternative to WinDirStat and TreeSize.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-gray)](https://www.microsoft.com/windows)
 [![Sponsor](https://img.shields.io/badge/Sponsor-GitHub-pink)](https://github.com/sponsors/vnilabean)
 
@@ -31,7 +30,13 @@ A high-performance disk usage analyzer for Windows, written in Rust. Designed as
 * **Terminal UI:** A keyboard-driven TUI built with `ratatui` for headless or low-resource environments.
 * **No Runtime Dependencies:** Compiled native binary with no reliance on .NET or Electron.
 
-![Demo](assets/demo.gif)
+**TUI treemap view:**
+
+![TUI Treemap](assets/tui_screenshot.png)
+
+**GUI demo:**
+
+![GUI Demo](assets/gui_demo.gif)
 
 ---
 
@@ -87,7 +92,7 @@ Comparison run on a Samsung 980 PRO NVMe (1TB capacity, ~250GB used).
 | TreeSize Free  | 12s       | 95 MB        | 38 MB       | C++ / GUI         |
 | WinDirStat     | 58s       | 220 MB       | 1.8 MB      | C++ (Sequential)  |
 
-Note: MFT parsing support for ferris-scan is currently in development (v0.3).
+Note: MFT parsing support for ferris-scan is currently in development (v0.8).
 
 ## Usage
 
@@ -135,11 +140,9 @@ Documents\Logs,Logs,Directory,102400
 
     [x] v0.2: File deletion interface
 
-    [ ] v0.3: Direct NTFS MFT Parsing (Driver-level scanning)
+    [x] v0.25: GUI Overhaul (Modern theme, Vector icons, Better layout)
 
     [ ] v0.4: Linux/macOS compatibility polish
-
-    [ ] v0.x: GUI Overhaul (Modern theme, Vector icons, Better layout)
 
     [ ] v0.x: Sunburst Chart Visualization
 
@@ -148,6 +151,9 @@ Documents\Logs,Logs,Directory,102400
     [ ] v0.x: Stale File Analysis (Heatmap)
 
     [ ] v0.x: File Type Breakdown (Pie Chart)
+
+    [ ] v0.8: Direct NTFS MFT Parsing (Driver-level scanning)
+
 ```
 
 ## License
