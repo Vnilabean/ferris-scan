@@ -327,27 +327,6 @@ impl eframe::App for FerrisScanApp {
                         .map(|nav| nav.path.len() > 1)
                         .unwrap_or(false);
 
-                    ui.horizontal(|ui| {
-                        ui.label("Location:");
-                        ui.label(
-                            egui::RichText::new(&breadcrumb)
-                                .color(accent_color),
-                        );
-
-                        if can_go_up {
-                            if ui
-                                .button(format!(
-                                    "{} Go Up",
-                                    egui_phosphor::regular::ARROW_LEFT
-                                ))
-                                .clicked()
-                            {
-                                should_drill_up = true;
-                            }
-                        }
-                    });
-                    ui.separator();
-
                     let current_node = self
                         .navigation
                         .as_ref()
@@ -360,306 +339,345 @@ impl eframe::App for FerrisScanApp {
                         self.selected_index = current_node.children.len() - 1;
                     }
 
-                    // Multi-pane layout: Tree (Table) | Details | Treemap & Stats
-                    egui::SidePanel::left("tree_panel")
-                        .resizable(true)
-                        .default_width(400.0)
-                        .width_range(300.0..=600.0)
+                    // Bottom action bar (Export / New Scan)
+                    egui::TopBottomPanel::bottom("scan_bottom_bar")
+                        .resizable(false)
+                        .exact_height(40.0)
                         .show_inside(ui, |ui| {
-                            ui.heading("Tree View");
-                            ui.separator();
+                            ui.add_space(6.0);
+                            ui.horizontal(|ui| {
+                                if ui
+                                    .button(format!(
+                                        "{} Export CSV",
+                                        egui_phosphor::regular::DOWNLOAD
+                                    ))
+                                    .clicked()
+                                {
+                                    should_export = true;
+                                    root_for_export = Some(root.clone());
+                                }
 
-                            use egui_extras::{Column, TableBuilder};
-
-                            TableBuilder::new(ui)
-                                .striped(true)
-                                .resizable(true)
-                                .cell_layout(egui::Layout::left_to_right(
-                                    egui::Align::Center,
-                                ))
-                                .column(
-                                    Column::initial(300.0)
-                                        .at_least(100.0)
-                                        .resizable(true),
-                                ) // Name
-                                .column(
-                                    Column::initial(80.0).resizable(true),
-                                ) // Size
-                                .column(Column::remainder()) // Type
-                                .header(20.0, |mut header| {
-                                    header.col(|ui| {
-                                        ui.strong("Name");
-                                    });
-                                    header.col(|ui| {
-                                        ui.strong("Size");
-                                    });
-                                    header.col(|ui| {
-                                        ui.strong("Type");
-                                    });
-                                })
-                                .body(|mut body| {
-                                    for (idx, child) in
-                                        current_node.children.iter().enumerate()
-                                    {
-                                        body.row(20.0, |mut row| {
-                                            let is_selected =
-                                                idx == self.selected_index;
-
-                                            // Name column
-                                            row.col(|ui| {
-                                                let icon = if child.is_dir {
-                                                    egui_phosphor::regular::FOLDER
-                                                } else {
-                                                    egui_phosphor::regular::FILE
-                                                };
-
-                                                // Truncate very long names so they don't
-                                                // break the layout, while remaining UTF-8 safe.
-                                                let name = &child.name;
-                                                let max_len = 40;
-                                                let mut truncated = String::new();
-                                                let mut chars = name.chars();
-                                                for _ in 0..max_len {
-                                                    if let Some(ch) = chars.next() {
-                                                        truncated.push(ch);
-                                                    } else {
-                                                        break;
-                                                    }
-                                                }
-                                                if chars.next().is_some() {
-                                                    truncated.push('…');
-                                                } else {
-                                                    truncated = name.clone();
-                                                }
-
-                                                let label = ui
-                                                    .selectable_label(
-                                                        is_selected,
-                                                        format!(
-                                                            "{} {}",
-                                                            icon, truncated
-                                                        ),
-                                                    );
-
-                                                if label.clicked() {
-                                                    self.selected_index = idx;
-                                                }
-
-                                                if label.double_clicked()
-                                                    && child.is_dir
-                                                {
-                                                    should_drill_down =
-                                                        Some(child.clone());
-                                                }
-                                            });
-
-                                            // Size column
-                                            row.col(|ui| {
-                                                ui.label(format_size(
-                                                    child.size,
-                                                ));
-                                            });
-
-                                            // Type/Icon column
-                                            row.col(|ui| {
-                                                let icon = if child.is_dir {
-                                                    egui_phosphor::regular::FOLDER
-                                                } else {
-                                                    egui_phosphor::regular::FILE
-                                                };
-                                                let label = if child.is_dir {
-                                                    "Directory"
-                                                } else {
-                                                    "File"
-                                                };
-                                                ui.label(format!(
-                                                    "{} {}",
-                                                    icon, label
-                                                ));
-                                            });
-                                        });
-                                    }
-                                });
+                                if ui
+                                    .button(format!(
+                                        "{} New Scan",
+                                        egui_phosphor::regular::ARROWS_CLOCKWISE
+                                    ))
+                                    .clicked()
+                                {
+                                    should_reset = true;
+                                }
+                            });
                         });
 
-                    egui::SidePanel::right("stats_panel")
-                        .resizable(true)
-                        .default_width(300.0)
-                        .show_inside(ui, |ui| {
-                            ui.heading("Treemap & Stats");
-                            ui.separator();
+                    // Main three-pane layout above the bottom bar
+                    egui::CentralPanel::default().show_inside(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label("Location:");
+                            ui.label(
+                                egui::RichText::new(&breadcrumb)
+                                    .color(accent_color),
+                            );
 
-                            if let Some((clicked_index, is_double)) =
-                                render_treemap(
-                                    ui,
-                                    current_node,
-                                    Some(self.selected_index),
-                                )
-                            {
-                                self.selected_index = clicked_index;
-                                if is_double {
-                                    if let Some(child) =
-                                        current_node.children.get(clicked_index)
-                                    {
-                                        if child.is_dir {
-                                            should_drill_down =
-                                                Some(child.clone());
+                            if can_go_up {
+                                if ui
+                                    .button(format!(
+                                        "{} Go Up",
+                                        egui_phosphor::regular::ARROW_LEFT
+                                    ))
+                                    .clicked()
+                                {
+                                    should_drill_up = true;
+                                }
+                            }
+                        });
+                        ui.separator();
+
+                        // Multi-pane layout: Tree (Table) | Details | Treemap & Stats
+                        egui::SidePanel::left("tree_panel")
+                            .resizable(true)
+                            .default_width(400.0)
+                            .width_range(300.0..=600.0)
+                            .show_inside(ui, |ui| {
+                                ui.heading("Tree View");
+                                ui.separator();
+
+                                use egui_extras::{Column, TableBuilder};
+
+                                TableBuilder::new(ui)
+                                    .striped(true)
+                                    .resizable(true)
+                                    .cell_layout(egui::Layout::left_to_right(
+                                        egui::Align::Center,
+                                    ))
+                                    .column(
+                                        Column::initial(300.0)
+                                            .at_least(100.0)
+                                            .resizable(true),
+                                    ) // Name
+                                    .column(
+                                        Column::initial(80.0).resizable(true),
+                                    ) // Size
+                                    .column(Column::remainder()) // Type
+                                    .header(20.0, |mut header| {
+                                        header.col(|ui| {
+                                            ui.strong("Name");
+                                        });
+                                        header.col(|ui| {
+                                            ui.strong("Size");
+                                        });
+                                        header.col(|ui| {
+                                            ui.strong("Type");
+                                        });
+                                    })
+                                    .body(|mut body| {
+                                        for (idx, child) in
+                                            current_node.children.iter().enumerate()
+                                        {
+                                            body.row(20.0, |mut row| {
+                                                let is_selected =
+                                                    idx == self.selected_index;
+
+                                                // Name column
+                                                row.col(|ui| {
+                                                    let icon = if child.is_dir {
+                                                        egui_phosphor::regular::FOLDER
+                                                    } else {
+                                                        egui_phosphor::regular::FILE
+                                                    };
+
+                                                    // Truncate very long names so they don't
+                                                    // break the layout, while remaining UTF-8 safe.
+                                                    let name = &child.name;
+                                                    let max_len = 40;
+                                                    let mut truncated =
+                                                        String::new();
+                                                    let mut chars =
+                                                        name.chars();
+                                                    for _ in 0..max_len {
+                                                        if let Some(ch) =
+                                                            chars.next()
+                                                        {
+                                                            truncated.push(ch);
+                                                        } else {
+                                                            break;
+                                                        }
+                                                    }
+                                                    if chars.next().is_some() {
+                                                        truncated.push('…');
+                                                    } else {
+                                                        truncated = name.clone();
+                                                    }
+
+                                                    let label = ui
+                                                        .selectable_label(
+                                                            is_selected,
+                                                            format!(
+                                                                "{} {}",
+                                                                icon, truncated
+                                                            ),
+                                                        );
+
+                                                    if label.clicked() {
+                                                        self.selected_index =
+                                                            idx;
+                                                    }
+
+                                                    if label.double_clicked()
+                                                        && child.is_dir
+                                                    {
+                                                        should_drill_down = Some(
+                                                            child.clone(),
+                                                        );
+                                                    }
+                                                });
+
+                                                // Size column
+                                                row.col(|ui| {
+                                                    ui.label(format_size(
+                                                        child.size,
+                                                    ));
+                                                });
+
+                                                // Type/Icon column
+                                                row.col(|ui| {
+                                                    let icon = if child.is_dir {
+                                                        egui_phosphor::regular::FOLDER
+                                                    } else {
+                                                        egui_phosphor::regular::FILE
+                                                    };
+                                                    let label =
+                                                        if child.is_dir {
+                                                            "Directory"
+                                                        } else {
+                                                            "File"
+                                                        };
+                                                    ui.label(format!(
+                                                        "{} {}",
+                                                        icon, label
+                                                    ));
+                                                });
+                                            });
+                                        }
+                                    });
+                            });
+
+                        egui::SidePanel::right("stats_panel")
+                            .resizable(true)
+                            .default_width(300.0)
+                            .show_inside(ui, |ui| {
+                                ui.heading("Treemap & Stats");
+                                ui.separator();
+
+                                if let Some((clicked_index, is_double)) =
+                                    render_treemap(
+                                        ui,
+                                        current_node,
+                                        Some(self.selected_index),
+                                    )
+                                {
+                                    self.selected_index = clicked_index;
+                                    if is_double {
+                                        if let Some(child) = current_node
+                                            .children
+                                            .get(clicked_index)
+                                        {
+                                            if child.is_dir {
+                                                should_drill_down =
+                                                    Some(child.clone());
+                                            }
                                         }
                                     }
                                 }
-                            }
 
-                            if !current_node.children.is_empty() {
-                                ui.add_space(6.0);
+                                if !current_node.children.is_empty() {
+                                    ui.add_space(6.0);
+                                    ui.label(
+                                        egui::RichText::new(
+                                            "Tip: Click tiles in the treemap \
+                                             to select items in the tree.",
+                                        )
+                                        .italics()
+                                        .weak(),
+                                    );
+                                }
+
+                                ui.add_space(8.0);
+
+                                ui.label(
+                                    egui::RichText::new("Scan Statistics")
+                                        .heading()
+                                        .color(accent_color),
+                                );
+                                ui.add_space(5.0);
+
+                                ui.label(format!(
+                                    "Total Size: {}",
+                                    format_size(root.size)
+                                ));
+                                ui.label(format!(
+                                    "Skipped: {} entries",
+                                    report.skipped.len()
+                                ));
+
+                                ui.add_space(10.0);
+
+                                ui.label(
+                                    egui::RichText::new("Current Directory")
+                                        .heading()
+                                        .color(accent_color),
+                                );
+                                ui.add_space(5.0);
+
+                                ui.label(format!(
+                                    "Name: {}",
+                                    current_node.name
+                                ));
+                                ui.label(format!(
+                                    "Size: {}",
+                                    format_size(current_node.size)
+                                ));
+                                ui.label(format!(
+                                    "Items: {}",
+                                    current_node.children.len()
+                                ));
+                            });
+
+                        // Middle details panel
+                        egui::CentralPanel::default().show_inside(ui, |ui| {
+                            ui.heading("Details");
+                            ui.separator();
+
+                            if let Some(selected_item) =
+                                current_node.children.get(self.selected_index)
+                            {
+                                ui.label(
+                                    egui::RichText::new("Selected Item Details")
+                                        .heading()
+                                        .color(accent_color),
+                                );
+                                ui.add_space(5.0);
+
+                                ui.horizontal(|ui| {
+                                    ui.label(
+                                        egui::RichText::new("Name:").strong(),
+                                    );
+                                    ui.label(&selected_item.name);
+                                });
+
+                                ui.horizontal(|ui| {
+                                    ui.label(
+                                        egui::RichText::new("Type:").strong(),
+                                    );
+                                    ui.label(if selected_item.is_dir {
+                                        "Directory"
+                                    } else {
+                                        "File"
+                                    });
+                                });
+
+                                ui.horizontal(|ui| {
+                                    ui.label(
+                                        egui::RichText::new("Size:").strong(),
+                                    );
+                                    ui.label(format_size(selected_item.size));
+                                });
+
+                                ui.add_space(5.0);
+                                ui.label(
+                                    egui::RichText::new("Path:").strong(),
+                                );
                                 ui.label(
                                     egui::RichText::new(
-                                        "Tip: Click tiles in the treemap \
-                                         to select items in the tree.",
+                                        selected_item
+                                            .path
+                                            .display()
+                                            .to_string(),
                                     )
-                                    .italics()
-                                    .weak(),
+                                    .color(egui::Color32::from_rgb(
+                                        255, 255, 0,
+                                    ))
+                                    .monospace(),
                                 );
-                            }
 
-                            ui.add_space(8.0);
-
-                            ui.label(
-                                egui::RichText::new("Scan Statistics")
-                                    .heading()
-                                    .color(accent_color),
-                            );
-                            ui.add_space(5.0);
-
-                            ui.label(format!(
-                                "Total Size: {}",
-                                format_size(root.size)
-                            ));
-                            ui.label(format!(
-                                "Skipped: {} entries",
-                                report.skipped.len()
-                            ));
-
-                            ui.add_space(10.0);
-
-                            ui.label(
-                                egui::RichText::new("Current Directory")
-                                    .heading()
-                                    .color(accent_color),
-                            );
-                            ui.add_space(5.0);
-
-                            ui.label(format!(
-                                "Name: {}",
-                                current_node.name
-                            ));
-                            ui.label(format!(
-                                "Size: {}",
-                                format_size(current_node.size)
-                            ));
-                            ui.label(format!(
-                                "Items: {}",
-                                current_node.children.len()
-                            ));
-                        });
-
-                    // Middle details panel
-                    egui::CentralPanel::default().show_inside(ui, |ui| {
-                        ui.heading("Details");
-                        ui.separator();
-
-                        if let Some(selected_item) =
-                            current_node.children.get(self.selected_index)
-                        {
-                            ui.label(
-                                egui::RichText::new("Selected Item Details")
-                                    .heading()
-                                    .color(accent_color),
-                            );
-                            ui.add_space(5.0);
-
-                            ui.horizontal(|ui| {
+                                if selected_item.is_dir {
+                                    ui.add_space(5.0);
+                                    ui.label(format!(
+                                        "Children: {} items",
+                                        selected_item.children.len()
+                                    ));
+                                }
+                            } else {
                                 ui.label(
-                                    egui::RichText::new("Name:").strong(),
+                                    egui::RichText::new("No item selected")
+                                        .italics()
+                                        .color(egui::Color32::GRAY),
                                 );
-                                ui.label(&selected_item.name);
-                            });
-
-                            ui.horizontal(|ui| {
-                                ui.label(
-                                    egui::RichText::new("Type:").strong(),
-                                );
-                                ui.label(if selected_item.is_dir {
-                                    "Directory"
-                                } else {
-                                    "File"
-                                });
-                            });
-
-                            ui.horizontal(|ui| {
-                                ui.label(
-                                    egui::RichText::new("Size:").strong(),
-                                );
-                                ui.label(format_size(selected_item.size));
-                            });
-
-                            ui.add_space(5.0);
-                            ui.label(egui::RichText::new("Path:").strong());
-                            ui.label(
-                                egui::RichText::new(
-                                    selected_item
-                                        .path
-                                        .display()
-                                        .to_string(),
-                                )
-                                .color(egui::Color32::from_rgb(
-                                    255, 255, 0,
-                                ))
-                                .monospace(),
-                            );
-
-                            if selected_item.is_dir {
                                 ui.add_space(5.0);
-                                ui.label(format!(
-                                    "Children: {} items",
-                                    selected_item.children.len()
-                                ));
+                                ui.label(
+                                    "Click an item in the tree to view details.",
+                                );
                             }
-                        } else {
-                            ui.label(
-                                egui::RichText::new("No item selected")
-                                    .italics()
-                                    .color(egui::Color32::GRAY),
-                            );
-                            ui.add_space(5.0);
-                            ui.label(
-                                "Click an item in the tree to view details.",
-                            );
-                        }
-                    });
-
-                    ui.add_space(10.0);
-
-                    ui.horizontal(|ui| {
-                        if ui
-                            .button(format!(
-                                "{} Export CSV",
-                                egui_phosphor::regular::DOWNLOAD
-                            ))
-                            .clicked()
-                        {
-                            should_export = true;
-                            root_for_export = Some(root.clone());
-                        }
-
-                        if ui
-                            .button(format!(
-                                "{} New Scan",
-                                egui_phosphor::regular::ARROWS_CLOCKWISE
-                            ))
-                            .clicked()
-                        {
-                            should_reset = true;
-                        }
+                        });
                     });
                 }
                 ScanStatus::Error(err) => {
