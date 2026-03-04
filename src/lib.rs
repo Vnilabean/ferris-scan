@@ -1,5 +1,5 @@
 //! Core library for ferris-scan - disk usage analyzer
-//! 
+//!
 //! # Overview
 //!
 //! This library provides high-performance disk usage scanning with feature gated Pro functionality.
@@ -18,7 +18,7 @@
 //! let scanner = Scanner::new();
 //! let result = scanner.scan(Path::new("."));
 //! ```
-//! 
+//!
 
 use std::path::{Path, PathBuf};
 use std::sync::{atomic::AtomicU64, atomic::Ordering, mpsc, Arc, Mutex};
@@ -61,7 +61,7 @@ pub struct ScanProgress {
 pub struct SharedProgress {
     /// Number of files processed
     pub files_scanned: AtomicU64,
-    /// Last path the scanner touched 
+    /// Last path the scanner touched
     pub last_path: Mutex<Option<PathBuf>>,
 }
 
@@ -79,7 +79,7 @@ pub struct ScanReport {
 }
 
 /// Represents the current state of a scan operation.
-/// 
+///
 /// Frontends (TUI/GUI) can poll this to update their UI accordingly.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ScanState {
@@ -91,21 +91,18 @@ pub enum ScanState {
         current_path: Option<PathBuf>,
     },
     /// Scan completed successfully with results
-    Done {
-        root: Node,
-        report: ScanReport,
-    },
+    Done { root: Node, report: ScanReport },
     /// Scan failed with error message
     Error(String),
 }
 
 /// High-performance disk usage scanner
-/// 
+///
 /// This is the main interface for scanning directories. Use this instead of
 /// the lower-level `scan_directory` functions for better encapsulation.
-/// 
+///
 /// # Multi-Frontend Architecture
-/// 
+///
 /// This Scanner is designed to be used by multiple frontends (TUI, GUI, etc.).
 /// It provides both blocking and progress-based scanning methods.
 #[derive(Debug, Default)]
@@ -128,19 +125,17 @@ impl Node {
         }
     }
 
-
-
     /// Delete a node from the tree by path and remove it from disk.
-    /// 
+    ///
     /// This method:
     /// 1. Finds the node in the tree by matching its path
     /// 2. Deletes it from disk
     /// 3. Removes it from the parents children vector
     /// 4. Updates parent sizes by subtracting the deleted node's size
-    /// 
+    ///
     /// # Arguments
     /// * `target_path` - The path of the node to delete
-    /// 
+    ///
     /// # Returns
     /// * `Ok(())` - If deletion succeeded
     /// * `Err(std::io::Error)` - If deletion failed
@@ -151,10 +146,10 @@ impl Node {
             } else {
                 std::fs::remove_file(target_path)?;
             }
-            
+
             // Update this node's size by subtract the deleted nodes size
             self.size = self.size.saturating_sub(deleted_size);
-            
+
             Ok(())
         } else {
             Err(std::io::Error::new(
@@ -166,7 +161,10 @@ impl Node {
 
     /// Recursively search for and remove a child node by path.
     /// Returns the size and is_dir flag of the deleted node if found.
-    fn remove_child_by_path(&mut self, target_path: &Path) -> Result<Option<(u64, bool)>, std::io::Error> {
+    fn remove_child_by_path(
+        &mut self,
+        target_path: &Path,
+    ) -> Result<Option<(u64, bool)>, std::io::Error> {
         for (index, child) in self.children.iter().enumerate() {
             if child.path == target_path {
                 let deleted_size = child.size;
@@ -178,7 +176,9 @@ impl Node {
 
         for child in &mut self.children {
             if target_path.starts_with(&child.path) {
-                if let Some((deleted_size, deleted_is_dir)) = child.remove_child_by_path(target_path)? {
+                if let Some((deleted_size, deleted_is_dir)) =
+                    child.remove_child_by_path(target_path)?
+                {
                     self.size = self.size.saturating_sub(deleted_size);
                     return Ok(Some((deleted_size, deleted_is_dir)));
                 }
@@ -222,19 +222,19 @@ impl Scanner {
     }
 
     /// Scan a directory and return the root node with all children
-    /// 
+    ///
     /// # Arguments
     /// * `path` - The directory path to scan
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Node)` - The root node containing the entire tree
     /// * `Err(anyhow::Error)` - If scanning fails
-    /// 
+    ///
     /// # Example
     /// ```no_run
     /// use ferris_scan::Scanner;
     /// use std::path::Path;
-    /// 
+    ///
     /// let scanner = Scanner::new();
     /// let result = scanner.scan(Path::new("C:/")).unwrap();
     /// println!("Total size: {} bytes", result.size);
@@ -254,27 +254,27 @@ impl Scanner {
     }
 
     /// Export scan results to CSV format (Pro feature only)
-    /// 
+    ///
     /// This function is only available when compiled with `--features pro`.
-    /// 
+    ///
     /// # Arguments
     /// * `root` - The root node to export
     /// * `output_path` - Path where the CSV file will be written
-    /// 
+    ///
     /// # Returns
     /// * `Ok(())` - If export succeeds
     /// * `Err(anyhow::Error)` - If export fails
-    /// 
+    ///
     /// # Pro Feature
     /// This method is only available in the Pro version.
-    /// 
+    ///
     /// # Example
     /// ```no_run
     /// # #[cfg(feature = "pro")]
     /// # {
     /// use ferris_scan::Scanner;
     /// use std::path::Path;
-    /// 
+    ///
     /// let scanner = Scanner::new();
     /// let result = scanner.scan(Path::new("C:/")).unwrap();
     /// scanner.export_csv(&result, Path::new("output.csv")).unwrap();
@@ -350,7 +350,8 @@ pub fn scan_directory_with_report_shared<P: AsRef<Path>>(
     let mut report = ScanReport::default();
 
     let mut root_node = Node::new(
-        root_path.file_name()
+        root_path
+            .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or(".")
             .to_string(),
@@ -405,7 +406,8 @@ pub fn scan_directory_with_report_shared<P: AsRef<Path>>(
                 };
                 files_scanned += 1;
                 if let Some(ref sp) = shared_progress {
-                    sp.files_scanned.store(files_scanned as u64, Ordering::Relaxed);
+                    sp.files_scanned
+                        .store(files_scanned as u64, Ordering::Relaxed);
                 }
                 add_file_to_tree(&mut root_node, relative, md.len());
             }
@@ -423,7 +425,7 @@ pub fn scan_directory_with_report_shared<P: AsRef<Path>>(
 
     calculate_dir_sizes(&mut root_node);
     sort_tree(&mut root_node);
-    
+
     Ok((root_node, report))
 }
 
@@ -445,11 +447,9 @@ fn ensure_dir_path(root: &mut Node, path: &Path) {
         let idx = match existing_idx {
             Some(i) => i,
             None => {
-                current.children.push(Node::new(
-                    name.clone(),
-                    current.path.join(&name),
-                    true,
-                ));
+                current
+                    .children
+                    .push(Node::new(name.clone(), current.path.join(&name), true));
                 current.children.len() - 1
             }
         };
@@ -470,11 +470,9 @@ fn add_file_to_tree(root: &mut Node, path: &Path, size: u64) {
         let idx = match existing_idx {
             Some(i) => i,
             None => {
-                current.children.push(Node::new(
-                    name.clone(),
-                    current.path.join(&name),
-                    !is_leaf,
-                ));
+                current
+                    .children
+                    .push(Node::new(name.clone(), current.path.join(&name), !is_leaf));
                 current.children.len() - 1
             }
         };
@@ -510,6 +508,199 @@ fn sort_tree(node: &mut Node) {
     }
 }
 
+/// Rectangle in a treemap representing a single child node.
+///
+/// Coordinates (`x`, `y`, `w`, `h`) are expressed in abstract units and should
+/// be interpreted by the caller (e.g. pixels for GUI, characters for TUI).
+#[derive(Debug, Clone, Copy)]
+pub struct TreemapRect {
+    /// Index into the original children slice.
+    pub index: usize,
+    /// Absolute size in bytes.
+    pub size: u64,
+    /// Fraction of the parent directory size in the range (0.0, 1.0].
+    pub fraction: f64,
+    /// Whether this entry represents a directory.
+    pub is_dir: bool,
+    /// X coordinate of the top-left corner.
+    pub x: f32,
+    /// Y coordinate of the top-left corner.
+    pub y: f32,
+    /// Width of the rectangle.
+    pub w: f32,
+    /// Height of the rectangle.
+    pub h: f32,
+}
+
+/// Worst aspect ratio of a rectangle (1.0 = square).
+#[inline]
+fn aspect_ratio(w: f32, h: f32) -> f32 {
+    if w <= 0.0 || h <= 0.0 {
+        return f32::MAX;
+    }
+    let r = w / h;
+    r.max(1.0 / r)
+}
+
+/// Build a squarified treemap so boxes stack in a 2D grid (TreeSize-style).
+///
+/// Uses a squarified layout: repeatedly fills a row or column with items,
+/// then continues in the remaining space, producing a mix of horizontal
+/// and vertical stacking.
+pub fn build_treemap(
+    children: &[Node],
+    width: f32,
+    height: f32,
+    min_fraction: f64,
+) -> Vec<TreemapRect> {
+    let mut rects = Vec::new();
+
+    if width <= 0.0 || height <= 0.0 {
+        return rects;
+    }
+
+    let total_size: u64 = children.iter().map(|c| c.size).sum();
+    if total_size == 0 {
+        return rects;
+    }
+
+    let mut items: Vec<(usize, &Node, f64)> = children
+        .iter()
+        .enumerate()
+        .map(|(idx, node)| {
+            let fraction = node.size as f64 / total_size as f64;
+            (idx, node, fraction)
+        })
+        .filter(|(_, _, fraction)| *fraction >= min_fraction)
+        .collect();
+
+    if items.is_empty() {
+        return rects;
+    }
+
+    let sum_fraction: f64 = items.iter().map(|(_, _, f)| *f).sum();
+    if sum_fraction == 0.0 {
+        return rects;
+    }
+
+    for (_, _, fraction) in &mut items {
+        *fraction /= sum_fraction;
+    }
+
+    // Squarified layout: fill (x, y, w, h) with items from start.. end
+    fn squarify(
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+        items: &[(usize, &Node, f64)],
+        start: usize,
+        rects: &mut Vec<TreemapRect>,
+    ) {
+        if start >= items.len() || w <= 0.0 || h <= 0.0 {
+            return;
+        }
+
+        let rest_sum: f64 = items[start..].iter().map(|(_, _, f)| *f).sum();
+        if rest_sum <= 0.0 {
+            return;
+        }
+
+        let horizontal = w < h;
+
+        // Find k: take items start..start+k so that worst aspect ratio in batch is minimized
+        let mut k = 1usize;
+        let mut best_worst = f32::MAX;
+
+        for i in (start + 1)..=items.len() {
+            let batch_sum: f64 = items[start..i].iter().map(|(_, _, f)| *f).sum();
+            if batch_sum <= 0.0 {
+                continue;
+            }
+
+            let mut worst_ar = 0.0f32;
+            for j in start..i {
+                let f = items[j].2;
+                let scale = (batch_sum / rest_sum) as f32;
+                let (cell_w, cell_h) = if horizontal {
+                    let row_h = h * scale;
+                    (w * (f as f32) / (batch_sum as f32), row_h)
+                } else {
+                    let col_w = w * scale;
+                    (col_w, h * (f as f32) / (batch_sum as f32))
+                };
+                worst_ar = aspect_ratio(cell_w, cell_h).max(worst_ar);
+            }
+
+            if worst_ar <= best_worst {
+                best_worst = worst_ar;
+                k = i - start;
+            } else {
+                break;
+            }
+        }
+
+        let batch_sum: f64 = items[start..start + k].iter().map(|(_, _, f)| *f).sum();
+        if batch_sum <= 0.0 {
+            return;
+        }
+
+        // normalize ratio against the REMAINING sum to fill the remaining space fully
+        let scale = (batch_sum / rest_sum) as f32;
+
+        let (sub_w, sub_h) = if horizontal {
+            (w, h * scale)
+        } else {
+            (w * scale, h)
+        };
+
+        let mut cursor = 0.0f32;
+        for j in start..(start + k) {
+            let (idx, node, f) = items[j];
+            let frac = f / batch_sum;
+
+            let (rx, ry, rw, rh) = if horizontal {
+                let slice_w = sub_w * (frac as f32);
+                (x + cursor, y, slice_w, sub_h)
+            } else {
+                let slice_h = sub_h * (frac as f32);
+                (x, y + cursor, sub_w, slice_h)
+            };
+
+            rects.push(TreemapRect {
+                index: idx,
+                size: node.size,
+                fraction: items[j].2,
+                is_dir: node.is_dir,
+                x: rx,
+                y: ry,
+                w: rw,
+                h: rh,
+            });
+
+            if horizontal {
+                cursor += sub_w * (frac as f32);
+            } else {
+                cursor += sub_h * (frac as f32);
+            }
+        }
+
+        // Remaining rectangle and items
+        let (next_x, next_y, next_w, next_h) = if horizontal {
+            (x, y + sub_h, w, h - sub_h)
+        } else {
+            (x + sub_w, y, w - sub_w, h)
+        };
+
+        if next_w > 0.0 && next_h > 0.0 {
+            squarify(next_x, next_y, next_w, next_h, items, start + k, rects);
+        }
+    }
+
+    squarify(0.0, 0.0, width, height, &items, 0, &mut rects);
+    rects
+}
+
 // ============================================================================
 // TESTS
 // ============================================================================
@@ -541,7 +732,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let scanner = Scanner::new();
         let result = scanner.scan(dir.path()).unwrap();
-        
+
         let output_path = dir.path().join("export.csv");
         let export_result = scanner.export_csv(&result, &output_path);
         assert!(export_result.is_ok());
