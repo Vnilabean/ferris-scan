@@ -1,9 +1,9 @@
 //! Terminal User Interface for ferris-scan
 //!
 //! This provides an interactive terminal UI for the disk usage analyzer.
-//! 
+//!
 //! # Architecture
-//! 
+//!
 //! This is a thin wrapper around the core `ferris_scan` library. It uses
 //! `ratatui` for rendering and handles all terminal-specific logic.
 
@@ -13,7 +13,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use ferris_scan::{build_treemap, Node, Scanner, ScanReport, SharedProgress, TreemapRect};
+use ferris_scan::{build_treemap, Node, ScanReport, Scanner, SharedProgress, TreemapRect};
 use ratatui::{
     backend::{Backend, CrosstermBackend},
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -23,8 +23,7 @@ use ratatui::{
     Frame, Terminal,
 };
 use std::{
-    env,
-    io,
+    env, io,
     path::PathBuf,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -119,23 +118,22 @@ impl NavigationState {
             return;
         }
 
-
         let target_path = self.path.last().map(|n| n.path.clone());
-        
+
         // Rebuild path from root
         self.path.clear();
         self.path.push(root.clone());
-        
+
         if let Some(ref target) = target_path {
             if target == &root.path {
                 self.selected = 0;
                 return;
             }
-            
+
             if let Ok(relative) = target.strip_prefix(&root.path) {
                 let mut current = root;
                 let mut found = true;
-                
+
                 // Navigate through each component in the relative path
                 for component in relative.components() {
                     let name = component.as_os_str().to_string_lossy();
@@ -147,7 +145,7 @@ impl NavigationState {
                         break;
                     }
                 }
-                
+
                 if !found {
                     self.path = vec![root.clone()];
                 }
@@ -156,7 +154,7 @@ impl NavigationState {
                 self.path = vec![root.clone()];
             }
         }
-        
+
         self.selected = 0;
     }
 }
@@ -202,7 +200,8 @@ impl App {
         if let Some(path) = self.pending_deletion.take() {
             if let AppState::ViewingResults(ref mut root, _) = self.state {
                 // Check if we're deleting the current directory before deletion
-                let deleting_current = self.navigation
+                let deleting_current = self
+                    .navigation
                     .as_ref()
                     .map(|nav| nav.current().path == path)
                     .unwrap_or(false);
@@ -215,12 +214,12 @@ impl App {
                                 nav.drill_up();
                             }
                             nav.rebuild_from_root(root);
-                            
-
 
                             let current = nav.current();
                             if let Some(selected) = self.list_state.selected() {
-                                if selected >= current.children.len() && !current.children.is_empty() {
+                                if selected >= current.children.len()
+                                    && !current.children.is_empty()
+                                {
                                     self.list_state.select(Some(current.children.len() - 1));
                                 } else if current.children.is_empty() {
                                     self.list_state.select(None);
@@ -249,7 +248,7 @@ impl App {
             if let AppState::ViewingResults(ref root, _) = self.state {
                 let output_path = self.scan_path.with_file_name("ferris-scan-export.csv");
                 let scanner = Scanner::new();
-                
+
                 match scanner.export_csv(root, &output_path) {
                     Ok(_) => {
                         self.show_popup(format!(
@@ -502,9 +501,14 @@ fn ui(f: &mut Frame, app: &mut App) {
 
     match &app.state {
         AppState::Scanning => render_scanning(f, chunks[1], app),
-        AppState::ViewingResults(root, report) => {
-            render_results(f, chunks[1], root, report, &app.navigation, &mut app.list_state)
-        }
+        AppState::ViewingResults(root, report) => render_results(
+            f,
+            chunks[1],
+            root,
+            report,
+            &app.navigation,
+            &mut app.list_state,
+        ),
     }
 
     render_footer(f, chunks[2], app);
@@ -526,8 +530,12 @@ fn ui(f: &mut Frame, app: &mut App) {
 }
 
 fn render_header(f: &mut Frame, area: Rect, app: &App) {
-    let title = format!("ferris-scan TUI v{} | {}", env!("CARGO_PKG_VERSION"), app.scan_path.display());
-    
+    let title = format!(
+        "ferris-scan TUI v{} | {}",
+        env!("CARGO_PKG_VERSION"),
+        app.scan_path.display()
+    );
+
     #[cfg(feature = "pro")]
     let version_tag = " [PRO] ";
     #[cfg(not(feature = "pro"))]
@@ -548,10 +556,7 @@ fn render_header(f: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_scanning(f: &mut Frame, area: Rect, app: &App) {
-    let files = app
-        .shared_progress
-        .files_scanned
-        .load(Ordering::Relaxed);
+    let files = app.shared_progress.files_scanned.load(Ordering::Relaxed);
     let last_path = app
         .shared_progress
         .last_path
@@ -584,7 +589,7 @@ fn render_scanning(f: &mut Frame, area: Rect, app: &App) {
             Block::default()
                 .borders(Borders::ALL)
                 .title("Status")
-                .border_style(Style::default().fg(Color::Cyan))
+                .border_style(Style::default().fg(Color::Cyan)),
         )
         .alignment(Alignment::Center)
         .wrap(Wrap { trim: true });
@@ -592,29 +597,33 @@ fn render_scanning(f: &mut Frame, area: Rect, app: &App) {
     f.render_widget(paragraph, area);
 }
 
-fn render_results(f: &mut Frame, area: Rect, root: &Node, report: &ScanReport, navigation: &Option<NavigationState>, list_state: &mut ListState) {
+fn render_results(
+    f: &mut Frame,
+    area: Rect,
+    root: &Node,
+    report: &ScanReport,
+    navigation: &Option<NavigationState>,
+    list_state: &mut ListState,
+) {
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3),
-            Constraint::Min(0),
-        ])
+        .constraints([Constraint::Length(3), Constraint::Min(0)])
         .split(area);
 
     let breadcrumb_text = navigation
         .as_ref()
         .map(|nav| nav.breadcrumb())
         .unwrap_or_else(|| "Root".to_string());
-    
+
     let breadcrumb = Paragraph::new(breadcrumb_text)
         .block(
             Block::default()
                 .borders(Borders::ALL)
                 .title("Location")
-                .border_style(Style::default().fg(Color::LightGreen))
+                .border_style(Style::default().fg(Color::LightGreen)),
         )
         .style(Style::default().fg(Color::LightCyan));
-    
+
     f.render_widget(breadcrumb, main_chunks[0]);
 
     let panes = Layout::default()
@@ -626,11 +635,8 @@ fn render_results(f: &mut Frame, area: Rect, root: &Node, report: &ScanReport, n
         ])
         .split(main_chunks[1]);
 
-    let current_node = navigation
-        .as_ref()
-        .map(|nav| nav.current())
-        .unwrap_or(root);
-    
+    let current_node = navigation.as_ref().map(|nav| nav.current()).unwrap_or(root);
+
     let selected_index = list_state.selected().unwrap_or(0);
 
     render_tree_pane(f, panes[0], current_node, list_state);
@@ -641,20 +647,17 @@ fn render_results(f: &mut Frame, area: Rect, root: &Node, report: &ScanReport, n
 fn render_tree_pane(f: &mut Frame, area: Rect, current_node: &Node, list_state: &mut ListState) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(1),
-            Constraint::Min(0),
-        ])
+        .constraints([Constraint::Length(1), Constraint::Min(0)])
         .split(area);
 
     let available_width = area.width.saturating_sub(2) as usize;
-    
+
     let size_column_width = 12;
     let name_column_width = available_width.saturating_sub(size_column_width + 1);
-    
+
     let size_column_width = size_column_width.max(10);
     let name_column_width = name_column_width.max(10);
-    
+
     let header_text = format!(
         "{:<width$} {:>size_width$}",
         "Name",
@@ -674,30 +677,36 @@ fn render_tree_pane(f: &mut Frame, area: Rect, current_node: &Node, list_state: 
     for child in &current_node.children {
         let size_str = format_size(child.size);
         let type_indicator = if child.is_dir { "📁" } else { "📄" };
-        
+
         let size_str_len = size_str.chars().count();
-        
+
         let max_name_len = available_width
             .saturating_sub(2)
             .saturating_sub(1)
             .saturating_sub(size_str_len);
-        
+
         let max_name_len = max_name_len.max(1);
-        
+
         let display_name = if child.name.chars().count() > max_name_len {
-            let truncated: String = child.name.chars().take(max_name_len.saturating_sub(3)).collect();
+            let truncated: String = child
+                .name
+                .chars()
+                .take(max_name_len.saturating_sub(3))
+                .collect();
             format!("{}...", truncated)
         } else {
             child.name.clone()
         };
-        
+
         let name_with_emoji = format!("{} {}", type_indicator, display_name);
-        
+
         let max_line_len = available_width;
         let size_str_bytes = size_str.len();
-        
-        let max_name_bytes = max_line_len.saturating_sub(size_str_bytes).saturating_sub(1); 
-        
+
+        let max_name_bytes = max_line_len
+            .saturating_sub(size_str_bytes)
+            .saturating_sub(1);
+
         let final_name = if name_with_emoji.len() > max_name_bytes {
             let truncate_to = max_name_bytes.saturating_sub(3);
             if truncate_to > 0 {
@@ -714,28 +723,25 @@ fn render_tree_pane(f: &mut Frame, area: Rect, current_node: &Node, list_state: 
         } else {
             name_with_emoji
         };
-        
+
         let final_name_len = final_name.len();
         let padding_needed = max_line_len
             .saturating_sub(final_name_len)
             .saturating_sub(size_str_bytes);
-        
+
         let padding = " ".repeat(padding_needed.max(1));
-        
+
         let final_line = format!("{}{}{}", final_name, padding, size_str);
-        
+
         if final_line.ends_with(&size_str) {
             let split_point = final_line.len() - size_str_bytes;
             let name_part = final_line[..split_point].to_string();
             let size_part = final_line[split_point..].to_string();
-            
+
             if size_part == size_str {
                 items.push(ListItem::new(Line::from(vec![
                     Span::raw(name_part),
-                    Span::styled(
-                        size_part,
-                        Style::default().fg(Color::Cyan),
-                    ),
+                    Span::styled(size_part, Style::default().fg(Color::Cyan)),
                 ])));
             } else {
                 items.push(ListItem::new(Line::from(Span::raw(final_line))));
@@ -752,7 +758,7 @@ fn render_tree_pane(f: &mut Frame, area: Rect, current_node: &Node, list_state: 
             Block::default()
                 .borders(Borders::ALL)
                 .title(title)
-                .border_style(Style::default().fg(Color::Cyan))
+                .border_style(Style::default().fg(Color::Cyan)),
         )
         .highlight_style(
             Style::default()
@@ -807,17 +813,17 @@ fn render_treemap_pane(f: &mut Frame, area: Rect, current_node: &Node, selected_
     // color palettes for directories and files. highly distinct colors
     // Using colors that are visually very different to prevent blending
     let dir_colors: &[Color] = &[
-        Color::Blue,        // Dark blue
-        Color::Green,       // Green
-        Color::Cyan,        // Cyan
-        Color::Magenta,     // Magenta
-        Color::LightBlue,   // Light blue
+        Color::Blue,      // Dark blue
+        Color::Green,     // Green
+        Color::Cyan,      // Cyan
+        Color::Magenta,   // Magenta
+        Color::LightBlue, // Light blue
     ];
     let file_colors: &[Color] = &[
-        Color::Red,         // Red
-        Color::Yellow,      // Yellow
-        Color::LightRed,    // Light red
-        Color::LightYellow, // Light yellow
+        Color::Red,          // Red
+        Color::Yellow,       // Yellow
+        Color::LightRed,     // Light red
+        Color::LightYellow,  // Light yellow
         Color::LightMagenta, // Light magenta
     ];
 
@@ -843,10 +849,14 @@ fn render_treemap_pane(f: &mut Frame, area: Rect, current_node: &Node, selected_
 
             let is_selected = rect.index == selected_index;
             // Select color from palette based on index to ensure adjacent items differ
-            let palette = if child.is_dir { dir_colors } else { file_colors };
+            let palette = if child.is_dir {
+                dir_colors
+            } else {
+                file_colors
+            };
             let color_idx = rect.index % palette.len();
             let bg_color = palette[color_idx];
-            
+
             let base_style = Style::default().bg(bg_color);
             let style = if is_selected {
                 base_style.add_modifier(Modifier::BOLD | Modifier::UNDERLINED)
@@ -881,20 +891,29 @@ fn render_treemap_pane(f: &mut Frame, area: Rect, current_node: &Node, selected_
 
                 let label = format!("{} ({:.1}%)", truncated, percent);
                 // Use white text for better contrast on colored backgrounds
-                lines.push(Line::from(Span::styled(label, Style::default().fg(Color::White).add_modifier(Modifier::BOLD))));
+                lines.push(Line::from(Span::styled(
+                    label,
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                )));
             }
 
             // render without borders to avoid visual glitches
-            let widget = Paragraph::new(lines)
-                .style(style)
-                .wrap(Wrap { trim: true });
+            let widget = Paragraph::new(lines).style(style).wrap(Wrap { trim: true });
 
             f.render_widget(widget, tile);
         }
     }
 }
 
-fn render_stats_pane(f: &mut Frame, area: Rect, root: &Node, report: &ScanReport, current_node: &Node) {
+fn render_stats_pane(
+    f: &mut Frame,
+    area: Rect,
+    root: &Node,
+    report: &ScanReport,
+    current_node: &Node,
+) {
     let stats_text = vec![
         Line::from(""),
         Line::from(Span::styled(
@@ -905,11 +924,11 @@ fn render_stats_pane(f: &mut Frame, area: Rect, root: &Node, report: &ScanReport
         )),
         Line::from(""),
         Line::from(vec![
-            Span::styled("Total Size: ", Style::default().add_modifier(Modifier::BOLD)),
             Span::styled(
-                format_size(root.size),
-                Style::default().fg(Color::Cyan),
+                "Total Size: ",
+                Style::default().add_modifier(Modifier::BOLD),
             ),
+            Span::styled(format_size(root.size), Style::default().fg(Color::Cyan)),
         ]),
         Line::from(""),
         Line::from(vec![
@@ -948,7 +967,7 @@ fn render_stats_pane(f: &mut Frame, area: Rect, root: &Node, report: &ScanReport
             Block::default()
                 .borders(Borders::ALL)
                 .title("Progress & Stats")
-                .border_style(Style::default().fg(Color::Cyan))
+                .border_style(Style::default().fg(Color::Cyan)),
         )
         .wrap(Wrap { trim: true });
 
@@ -958,21 +977,54 @@ fn render_stats_pane(f: &mut Frame, area: Rect, root: &Node, report: &ScanReport
 fn render_footer(f: &mut Frame, area: Rect, app: &App) {
     let key_hints = match &app.state {
         AppState::Scanning => vec![
-            Span::styled("q", Style::default().fg(Color::LightGreen).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "q",
+                Style::default()
+                    .fg(Color::LightGreen)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(": Quit"),
         ],
         AppState::ViewingResults(_, _) => vec![
-            Span::styled("q", Style::default().fg(Color::LightGreen).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "q",
+                Style::default()
+                    .fg(Color::LightGreen)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(": Quit | "),
-            Span::styled("Enter", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "Enter",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(": Open | "),
-            Span::styled("d", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "d",
+                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            ),
             Span::raw(": Delete | "),
-            Span::styled("Esc", Style::default().fg(Color::LightGreen).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "Esc",
+                Style::default()
+                    .fg(Color::LightGreen)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(": Back | "),
-            Span::styled("↑/↓", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "↑/↓",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" or "),
-            Span::styled("h/j/k/l", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "h/j/k/l",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(": Nav"),
         ],
     };
@@ -981,7 +1033,7 @@ fn render_footer(f: &mut Frame, area: Rect, app: &App) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::LightGreen))
+                .border_style(Style::default().fg(Color::LightGreen)),
         )
         .alignment(Alignment::Center);
 

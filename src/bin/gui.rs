@@ -1,10 +1,13 @@
-#![cfg_attr(all(target_os = "windows", not(debug_assertions)), windows_subsystem = "windows")]
+#![cfg_attr(
+    all(target_os = "windows", not(debug_assertions)),
+    windows_subsystem = "windows"
+)]
 //! Graphical User Interface for ferris-scan
 //!
 //! This provides a windowed GUI for the disk usage analyzer using eframe/egui.
-//! 
+//!
 //! # Architecture
-//! 
+//!
 //! This is a thin wrapper around the core `ferris_scan` library. It uses
 //! `eframe` for rendering and handles all GUI-specific logic.
 
@@ -58,9 +61,7 @@ struct FerrisScanApp {
 
 impl NavigationState {
     fn new(root: Node) -> Self {
-        Self {
-            path: vec![root],
-        }
+        Self { path: vec![root] }
     }
 
     /// Get the current node being viewed
@@ -105,7 +106,7 @@ impl FerrisScanApp {
 
     fn start_scan(&mut self) {
         let path = PathBuf::from(&self.scan_path);
-        
+
         if !path.exists() {
             self.popup_message = Some(format!("Path does not exist: {}", path.display()));
             return;
@@ -129,9 +130,7 @@ impl FerrisScanApp {
             done_flag_clone.store(true, Ordering::Relaxed);
 
             let new_status = match result {
-                Ok((root, report)) => {
-                    ScanStatus::Done { root, report }
-                }
+                Ok((root, report)) => ScanStatus::Done { root, report },
                 Err(e) => ScanStatus::Error(e.to_string()),
             };
 
@@ -155,7 +154,11 @@ impl FerrisScanApp {
                     ));
                 }
                 Err(e) => {
-                    self.popup_message = Some(format!("{} Export failed:\n{}", egui_phosphor::regular::X, e));
+                    self.popup_message = Some(format!(
+                        "{} Export failed:\n{}",
+                        egui_phosphor::regular::X,
+                        e
+                    ));
                 }
             }
         }
@@ -200,29 +203,17 @@ impl eframe::App for FerrisScanApp {
                 ui.horizontal(|ui| {
                     // App title + version
                     ui.vertical(|ui| {
-                        let title = format!(
-                            "{} ferris-scan GUI",
-                            egui_phosphor::regular::HARD_DRIVES
-                        );
+                        let title =
+                            format!("{} ferris-scan GUI", egui_phosphor::regular::HARD_DRIVES);
                         ui.heading(title);
-                        ui.label(
-                            egui::RichText::new(&version)
-                                .small()
-                                .color(accent_color),
-                        );
+                        ui.label(egui::RichText::new(&version).small().color(accent_color));
                     });
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let is_idle = matches!(
-                            *self.status.lock().unwrap(),
-                            ScanStatus::Idle
-                        );
+                        let is_idle = matches!(*self.status.lock().unwrap(), ScanStatus::Idle);
 
                         // Start Scan button (enabled only when idle)
-                        let start_label = format!(
-                            "{} Start Scan",
-                            egui_phosphor::regular::PLAY
-                        );
+                        let start_label = format!("{} Start Scan", egui_phosphor::regular::PLAY);
                         if ui
                             .add_enabled(is_idle, egui::Button::new(start_label))
                             .clicked()
@@ -232,33 +223,26 @@ impl eframe::App for FerrisScanApp {
 
                         ui.add_space(8.0);
 
-                        ui.with_layout(
-                            egui::Layout::left_to_right(egui::Align::Center),
-                            |ui| {
-                                ui.label("Path:");
-                                ui.text_edit_singleline(&mut self.scan_path);
+                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                            ui.label("Path:");
+                            ui.text_edit_singleline(&mut self.scan_path);
 
-                                if ui
-                                    .button(format!(
-                                        "{} Browse",
-                                        egui_phosphor::regular::FOLDER_OPEN
-                                    ))
-                                    .clicked()
-                                {
-                                    let dialog = FileDialog::new();
-                                    let dialog = if !self.scan_path.is_empty() {
-                                        dialog.set_directory(&self.scan_path)
-                                    } else {
-                                        dialog
-                                    };
+                            if ui
+                                .button(format!("{} Browse", egui_phosphor::regular::FOLDER_OPEN))
+                                .clicked()
+                            {
+                                let dialog = FileDialog::new();
+                                let dialog = if !self.scan_path.is_empty() {
+                                    dialog.set_directory(&self.scan_path)
+                                } else {
+                                    dialog
+                                };
 
-                                    if let Some(path) = dialog.pick_folder() {
-                                        self.scan_path =
-                                            path.display().to_string();
-                                    }
+                                if let Some(path) = dialog.pick_folder() {
+                                    self.scan_path = path.display().to_string();
                                 }
-                            },
-                        );
+                            }
+                        });
                     });
                 });
                 ui.add_space(4.0);
@@ -373,17 +357,11 @@ impl eframe::App for FerrisScanApp {
                     egui::CentralPanel::default().show_inside(ui, |ui| {
                         ui.horizontal(|ui| {
                             ui.label("Location:");
-                            ui.label(
-                                egui::RichText::new(&breadcrumb)
-                                    .color(accent_color),
-                            );
+                            ui.label(egui::RichText::new(&breadcrumb).color(accent_color));
 
                             if can_go_up {
                                 if ui
-                                    .button(format!(
-                                        "{} Go Up",
-                                        egui_phosphor::regular::ARROW_LEFT
-                                    ))
+                                    .button(format!("{} Go Up", egui_phosphor::regular::ARROW_LEFT))
                                     .clicked()
                                 {
                                     should_drill_up = true;
@@ -406,17 +384,9 @@ impl eframe::App for FerrisScanApp {
                                 TableBuilder::new(ui)
                                     .striped(true)
                                     .resizable(true)
-                                    .cell_layout(egui::Layout::left_to_right(
-                                        egui::Align::Center,
-                                    ))
-                                    .column(
-                                        Column::initial(300.0)
-                                            .at_least(100.0)
-                                            .resizable(true),
-                                    ) // Name
-                                    .column(
-                                        Column::initial(80.0).resizable(true),
-                                    ) // Size
+                                    .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
+                                    .column(Column::initial(300.0).at_least(100.0).resizable(true)) // Name
+                                    .column(Column::initial(80.0).resizable(true)) // Size
                                     .column(Column::remainder()) // Type
                                     .header(20.0, |mut header| {
                                         header.col(|ui| {
@@ -430,12 +400,10 @@ impl eframe::App for FerrisScanApp {
                                         });
                                     })
                                     .body(|mut body| {
-                                        for (idx, child) in
-                                            current_node.children.iter().enumerate()
+                                        for (idx, child) in current_node.children.iter().enumerate()
                                         {
                                             body.row(20.0, |mut row| {
-                                                let is_selected =
-                                                    idx == self.selected_index;
+                                                let is_selected = idx == self.selected_index;
 
                                                 // Name column
                                                 row.col(|ui| {
@@ -449,14 +417,10 @@ impl eframe::App for FerrisScanApp {
                                                     // break the layout, while remaining UTF-8 safe.
                                                     let name = &child.name;
                                                     let max_len = 40;
-                                                    let mut truncated =
-                                                        String::new();
-                                                    let mut chars =
-                                                        name.chars();
+                                                    let mut truncated = String::new();
+                                                    let mut chars = name.chars();
                                                     for _ in 0..max_len {
-                                                        if let Some(ch) =
-                                                            chars.next()
-                                                        {
+                                                        if let Some(ch) = chars.next() {
                                                             truncated.push(ch);
                                                         } else {
                                                             break;
@@ -468,34 +432,23 @@ impl eframe::App for FerrisScanApp {
                                                         truncated = name.clone();
                                                     }
 
-                                                    let label = ui
-                                                        .selectable_label(
-                                                            is_selected,
-                                                            format!(
-                                                                "{} {}",
-                                                                icon, truncated
-                                                            ),
-                                                        );
+                                                    let label = ui.selectable_label(
+                                                        is_selected,
+                                                        format!("{} {}", icon, truncated),
+                                                    );
 
                                                     if label.clicked() {
-                                                        self.selected_index =
-                                                            idx;
+                                                        self.selected_index = idx;
                                                     }
 
-                                                    if label.double_clicked()
-                                                        && child.is_dir
-                                                    {
-                                                        should_drill_down = Some(
-                                                            child.clone(),
-                                                        );
+                                                    if label.double_clicked() && child.is_dir {
+                                                        should_drill_down = Some(child.clone());
                                                     }
                                                 });
 
                                                 // Size column
                                                 row.col(|ui| {
-                                                    ui.label(format_size(
-                                                        child.size,
-                                                    ));
+                                                    ui.label(format_size(child.size));
                                                 });
 
                                                 // Type/Icon column
@@ -505,16 +458,12 @@ impl eframe::App for FerrisScanApp {
                                                     } else {
                                                         egui_phosphor::regular::FILE
                                                     };
-                                                    let label =
-                                                        if child.is_dir {
-                                                            "Directory"
-                                                        } else {
-                                                            "File"
-                                                        };
-                                                    ui.label(format!(
-                                                        "{} {}",
-                                                        icon, label
-                                                    ));
+                                                    let label = if child.is_dir {
+                                                        "Directory"
+                                                    } else {
+                                                        "File"
+                                                    };
+                                                    ui.label(format!("{} {}", icon, label));
                                                 });
                                             });
                                         }
@@ -529,21 +478,15 @@ impl eframe::App for FerrisScanApp {
                                 ui.separator();
 
                                 if let Some((clicked_index, is_double)) =
-                                    render_treemap(
-                                        ui,
-                                        current_node,
-                                        Some(self.selected_index),
-                                    )
+                                    render_treemap(ui, current_node, Some(self.selected_index))
                                 {
                                     self.selected_index = clicked_index;
                                     if is_double {
-                                        if let Some(child) = current_node
-                                            .children
-                                            .get(clicked_index)
+                                        if let Some(child) =
+                                            current_node.children.get(clicked_index)
                                         {
                                             if child.is_dir {
-                                                should_drill_down =
-                                                    Some(child.clone());
+                                                should_drill_down = Some(child.clone());
                                             }
                                         }
                                     }
@@ -579,16 +522,12 @@ impl eframe::App for FerrisScanApp {
                                 ui.add_space(5.0);
 
                                 ui.horizontal(|ui| {
-                                    ui.label(
-                                        egui::RichText::new("Name:").strong(),
-                                    );
+                                    ui.label(egui::RichText::new("Name:").strong());
                                     ui.label(&selected_item.name);
                                 });
 
                                 ui.horizontal(|ui| {
-                                    ui.label(
-                                        egui::RichText::new("Type:").strong(),
-                                    );
+                                    ui.label(egui::RichText::new("Type:").strong());
                                     ui.label(if selected_item.is_dir {
                                         "Directory"
                                     } else {
@@ -597,27 +536,16 @@ impl eframe::App for FerrisScanApp {
                                 });
 
                                 ui.horizontal(|ui| {
-                                    ui.label(
-                                        egui::RichText::new("Size:").strong(),
-                                    );
+                                    ui.label(egui::RichText::new("Size:").strong());
                                     ui.label(format_size(selected_item.size));
                                 });
 
                                 ui.add_space(5.0);
+                                ui.label(egui::RichText::new("Path:").strong());
                                 ui.label(
-                                    egui::RichText::new("Path:").strong(),
-                                );
-                                ui.label(
-                                    egui::RichText::new(
-                                        selected_item
-                                            .path
-                                            .display()
-                                            .to_string(),
-                                    )
-                                    .color(egui::Color32::from_rgb(
-                                        255, 255, 0,
-                                    ))
-                                    .monospace(),
+                                    egui::RichText::new(selected_item.path.display().to_string())
+                                        .color(egui::Color32::from_rgb(255, 255, 0))
+                                        .monospace(),
                                 );
 
                                 if selected_item.is_dir {
@@ -634,9 +562,7 @@ impl eframe::App for FerrisScanApp {
                                         .color(egui::Color32::GRAY),
                                 );
                                 ui.add_space(5.0);
-                                ui.label(
-                                    "Click an item in the tree to view details.",
-                                );
+                                ui.label("Click an item in the tree to view details.");
                             }
 
                             // Scan statistics section (bottom half)
@@ -651,14 +577,8 @@ impl eframe::App for FerrisScanApp {
                             );
                             ui.add_space(5.0);
 
-                            ui.label(format!(
-                                "Total Size: {}",
-                                format_size(root.size)
-                            ));
-                            ui.label(format!(
-                                "Skipped: {} entries",
-                                report.skipped.len()
-                            ));
+                            ui.label(format!("Total Size: {}", format_size(root.size)));
+                            ui.label(format!("Skipped: {} entries", report.skipped.len()));
 
                             ui.add_space(10.0);
 
@@ -670,25 +590,15 @@ impl eframe::App for FerrisScanApp {
                             ui.add_space(5.0);
 
                             ui.label(format!("Name: {}", current_node.name));
-                            ui.label(format!(
-                                "Size: {}",
-                                format_size(current_node.size)
-                            ));
-                            ui.label(format!(
-                                "Items: {}",
-                                current_node.children.len()
-                            ));
+                            ui.label(format!("Size: {}", format_size(current_node.size)));
+                            ui.label(format!("Items: {}", current_node.children.len()));
                         });
                     });
                 }
                 ScanStatus::Error(err) => {
                     ui.colored_label(
                         egui::Color32::RED,
-                        format!(
-                            "{} Error: {}",
-                            egui_phosphor::regular::X,
-                            err
-                        ),
+                        format!("{} Error: {}", egui_phosphor::regular::X, err),
                     );
                     ui.add_space(10.0);
 
@@ -758,6 +668,53 @@ impl eframe::App for FerrisScanApp {
 // TREEMAP RENDERING
 // ============================================================================
 
+fn elide_text_to_width(ui: &egui::Ui, text: &str, font_id: egui::FontId, max_width: f32) -> String {
+    if max_width <= 0.0 || text.is_empty() {
+        return String::new();
+    }
+
+    let measure = |s: &str| -> f32 {
+        ui.ctx()
+            .fonts_mut(|fonts| fonts.layout_no_wrap(s.to_owned(), font_id.clone(), egui::Color32::BLACK))
+            .size()
+            .x
+    };
+
+    if measure(text) <= max_width {
+        return text.to_owned();
+    }
+
+    const ELLIPSIS: &str = "…";
+    let ellipsis_w = measure(ELLIPSIS);
+    if ellipsis_w > max_width {
+        return String::new();
+    }
+
+    let chars: Vec<char> = text.chars().collect();
+    let mut lo = 0usize;
+    let mut hi = chars.len();
+    let mut best = 0usize;
+
+    while lo <= hi {
+        let mid = (lo + hi) / 2;
+        let mut candidate: String = chars.iter().take(mid).collect();
+        candidate.push_str(ELLIPSIS);
+
+        if measure(&candidate) <= max_width {
+            best = mid;
+            lo = mid + 1;
+        } else if mid == 0 {
+            break;
+        } else {
+            hi = mid - 1;
+        }
+    }
+
+    let mut out: String = chars.into_iter().take(best).collect();
+    out.push_str(ELLIPSIS);
+    out
+}
+
 fn render_treemap(
     ui: &mut egui::Ui,
     current_node: &Node,
@@ -775,20 +732,15 @@ fn render_treemap(
 
     // Reserve a rectangle for the treemap and get a painter for it.
     // This consumes the remaining space in the right panel.
-    let (response, painter) =
-        ui.allocate_painter(available_size, egui::Sense::click());
+    let (response, painter) = ui.allocate_painter(available_size, egui::Sense::click());
     let rect = response.rect;
 
     // Build treemap using character/pixel units from egui.
     // Use 0.0 so every child (including the selected one) always has a tile.
     let min_fraction = 0.0;
     let children_to_use = &current_node.children;
-    let treemap: Vec<TreemapRect> = build_treemap(
-        children_to_use,
-        rect.width(),
-        rect.height(),
-        min_fraction,
-    );
+    let treemap: Vec<TreemapRect> =
+        build_treemap(children_to_use, rect.width(), rect.height(), min_fraction);
 
     #[derive(Clone, Copy)]
     enum ClickKind {
@@ -804,8 +756,7 @@ fn render_treemap(
         None
     };
 
-    let clicked_pos = click_kind
-        .and_then(|_| response.interact_pointer_pos());
+    let clicked_pos = click_kind.and_then(|_| response.interact_pointer_pos());
     let mut clicked_index: Option<(usize, bool)> = None;
 
     if treemap.is_empty() {
@@ -831,9 +782,9 @@ fn render_treemap(
     ];
     let file_colors: &[egui::Color32] = &[
         egui::Color32::from_rgb(255, 140, 100), // Coral
-        egui::Color32::from_rgb(255, 180, 80),   // Orange
-        egui::Color32::from_rgb(255, 160, 120),  // Peach
-        egui::Color32::from_rgb(240, 150, 90),   // Tan-orange
+        egui::Color32::from_rgb(255, 180, 80),  // Orange
+        egui::Color32::from_rgb(255, 160, 120), // Peach
+        egui::Color32::from_rgb(240, 150, 90),  // Tan-orange
         egui::Color32::from_rgb(255, 130, 110), // Salmon
     ];
 
@@ -850,17 +801,20 @@ fn render_treemap(
 
             if let Some(pos) = clicked_pos {
                 if child_rect.contains(pos) {
-                    let is_double =
-                        matches!(click_kind, Some(ClickKind::Double));
+                    let is_double = matches!(click_kind, Some(ClickKind::Double));
                     clicked_index = Some((r.index, is_double));
                 }
             }
 
             // Select color from palette based on index to ensure adjacent items differ
-            let palette = if child.is_dir { dir_colors } else { file_colors };
+            let palette = if child.is_dir {
+                dir_colors
+            } else {
+                file_colors
+            };
             let color_idx = r.index % palette.len();
             let mut fill_color = palette[color_idx];
-            
+
             // Slight brightness variation based on fraction for visual interest
             let brightness_factor = 0.85 + (r.fraction * 0.3).min(0.15) as f32;
             fill_color = egui::Color32::from_rgb(
@@ -885,37 +839,32 @@ fn render_treemap(
                 egui::StrokeKind::Inside,
             );
 
-            // Draw a very short label if there's enough space (UTF-8 safe truncation).
+            // Draw a short label if there's enough space.
+            // IMPORTANT: clip to the tile rect so text never bleeds into neighbors.
             let min_label_w = 40.0;
             let min_label_h = 14.0;
             if child_rect.width() > min_label_w && child_rect.height() > min_label_h {
-                let name = &child.name;
-                let max_len = 20;
-                let mut truncated = String::new();
-                let mut chars = name.chars();
-                for _ in 0..max_len {
-                    if let Some(ch) = chars.next() {
-                        truncated.push(ch);
-                    } else {
-                        break;
-                    }
-                }
-                if chars.next().is_some() {
-                    truncated.push('…');
-                } else {
-                    truncated = name.clone();
-                }
-                painter.text(
-                    child_rect.left_top() + egui::vec2(2.0, 2.0),
+                let padding = 2.0;
+                let max_text_w = (child_rect.width() - padding * 2.0).max(0.0);
+                let font_id = egui::TextStyle::Small.resolve(ui.style());
+                let label = elide_text_to_width(ui, &child.name, font_id, max_text_w);
+                if !label.is_empty() {
+                    let clipped = painter.with_clip_rect(child_rect);
+                    clipped.text(
+                        child_rect.left_top() + egui::vec2(padding, padding),
                     egui::Align2::LEFT_TOP,
-                    truncated,
-                    egui::TextStyle::Small.resolve(ui.style()),
-                    egui::Color32::BLACK,
-                );
+                        label,
+                        egui::TextStyle::Small.resolve(ui.style()),
+                        egui::Color32::BLACK,
+                    );
+                }
             }
 
             // Tooltip with full details on hover.
-            if response.hover_pos().map_or(false, |pos| child_rect.contains(pos)) {
+            if response
+                .hover_pos()
+                .map_or(false, |pos| child_rect.contains(pos))
+            {
                 let percent = if total_size > 0 {
                     (child.size as f64 / total_size as f64) * 100.0
                 } else {
@@ -923,21 +872,22 @@ fn render_treemap(
                 };
 
                 let tooltip_id = egui::Id::new(("treemap_tooltip", child.path.clone()));
-                let hover_pos = ui.input(|i| i.pointer.hover_pos().unwrap_or(child_rect.left_top()));
+                let hover_pos =
+                    ui.input(|i| i.pointer.hover_pos().unwrap_or(child_rect.left_top()));
                 let screen_rect = ui.ctx().content_rect();
-                
+
                 // divide screen into quadrants
                 let is_right_half = hover_pos.x > screen_rect.center().x;
                 let is_bottom_half = hover_pos.y > screen_rect.center().y;
-                
+
                 // Determine pivot and offset
                 let (pivot, offset) = match (is_right_half, is_bottom_half) {
-                    (false, false) => (egui::Align2::LEFT_TOP,     egui::vec2(16.0, 16.0)),   // Top-Left cursor -> Pivot TL (Grow Down-Right)
-                    (true, false)  => (egui::Align2::RIGHT_TOP,    egui::vec2(-16.0, 16.0)),  // Top-Right cursor -> Pivot TR (Grow Down-Left)
-                    (false, true)  => (egui::Align2::LEFT_BOTTOM,  egui::vec2(16.0, -16.0)),  // Bottom-Left cursor -> Pivot BL (Grow Up-Right)
-                    (true, true)   => (egui::Align2::RIGHT_BOTTOM, egui::vec2(-16.0, -16.0)), // Bottom-Right cursor -> Pivot BR (Grow Up-Left)
+                    (false, false) => (egui::Align2::LEFT_TOP, egui::vec2(16.0, 16.0)), // Top-Left cursor -> Pivot TL (Grow Down-Right)
+                    (true, false) => (egui::Align2::RIGHT_TOP, egui::vec2(-16.0, 16.0)), // Top-Right cursor -> Pivot TR (Grow Down-Left)
+                    (false, true) => (egui::Align2::LEFT_BOTTOM, egui::vec2(16.0, -16.0)), // Bottom-Left cursor -> Pivot BL (Grow Up-Right)
+                    (true, true) => (egui::Align2::RIGHT_BOTTOM, egui::vec2(-16.0, -16.0)), // Bottom-Right cursor -> Pivot BR (Grow Up-Left)
                 };
-                
+
                 let tooltip_pos = hover_pos + offset;
 
                 egui::Area::new(tooltip_id)
@@ -946,9 +896,9 @@ fn render_treemap(
                     .fixed_pos(tooltip_pos)
                     .pivot(pivot) // Use pivot to control growth direction
                     .show(ui.ctx(), |ui| {
-                         egui::Frame::popup(ui.style()).show(ui, |ui| {
+                        egui::Frame::popup(ui.style()).show(ui, |ui| {
                             ui.set_max_width(300.0);
-                            
+
                             ui.label(egui::RichText::new(&child.name).strong());
                             ui.label(format!(
                                 "Type: {}",
@@ -957,7 +907,7 @@ fn render_treemap(
                             ui.label(format!("Size: {}", format_size(child.size)));
                             ui.label(format!("Of directory: {:.2}%", percent));
                             ui.label(format!("Path: {}", child.path.display()));
-                         });
+                        });
                     });
             }
         }
@@ -1023,9 +973,9 @@ fn format_size(bytes: u64) -> String {
 
 fn setup_custom_fonts(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
-    
+
     egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
-    
+
     ctx.set_fonts(fonts);
 }
 
@@ -1041,49 +991,32 @@ fn setup_custom_theme(ctx: &egui::Context) {
     visuals.window_fill = egui::Color32::from_rgb(20, 22, 30);
 
     // Non-interactive regions (backgrounds, status text areas)
-    visuals.widgets.noninteractive.bg_fill =
-        egui::Color32::from_rgb(28, 30, 40);
-    visuals.widgets.noninteractive.bg_stroke = egui::Stroke::new(
-        1.0,
-        egui::Color32::from_rgb(45, 50, 65),
-    );
+    visuals.widgets.noninteractive.bg_fill = egui::Color32::from_rgb(28, 30, 40);
+    visuals.widgets.noninteractive.bg_stroke =
+        egui::Stroke::new(1.0, egui::Color32::from_rgb(45, 50, 65));
 
     // Inactive widgets
     visuals.widgets.inactive.corner_radius = egui::CornerRadius::same(6);
-    visuals.widgets.inactive.bg_fill =
-        egui::Color32::from_rgb(32, 35, 48);
-    visuals.widgets.inactive.fg_stroke = egui::Stroke::new(
-        1.0,
-        egui::Color32::from_rgb(200, 200, 210),
-    );
+    visuals.widgets.inactive.bg_fill = egui::Color32::from_rgb(32, 35, 48);
+    visuals.widgets.inactive.fg_stroke =
+        egui::Stroke::new(1.0, egui::Color32::from_rgb(200, 200, 210));
 
     // Hovered widgets
     visuals.widgets.hovered.corner_radius = egui::CornerRadius::same(6);
-    visuals.widgets.hovered.bg_fill =
-        egui::Color32::from_rgb(45, 50, 65);
-    visuals.widgets.hovered.bg_stroke = egui::Stroke::new(
-        1.0,
-        egui::Color32::from_rgb(120, 200, 255),
-    );
-    visuals.widgets.hovered.fg_stroke =
-        egui::Stroke::new(1.0, egui::Color32::WHITE);
+    visuals.widgets.hovered.bg_fill = egui::Color32::from_rgb(45, 50, 65);
+    visuals.widgets.hovered.bg_stroke =
+        egui::Stroke::new(1.0, egui::Color32::from_rgb(120, 200, 255));
+    visuals.widgets.hovered.fg_stroke = egui::Stroke::new(1.0, egui::Color32::WHITE);
 
     // Active widgets
     visuals.widgets.active.corner_radius = egui::CornerRadius::same(6);
-    visuals.widgets.active.bg_fill =
-        egui::Color32::from_rgb(55, 65, 90);
-    visuals.widgets.active.bg_stroke = egui::Stroke::new(
-        1.0,
-        egui::Color32::from_rgb(120, 200, 255),
-    );
+    visuals.widgets.active.bg_fill = egui::Color32::from_rgb(55, 65, 90);
+    visuals.widgets.active.bg_stroke =
+        egui::Stroke::new(1.0, egui::Color32::from_rgb(120, 200, 255));
 
     // Selection + links use the same accent family
-    visuals.selection.bg_fill =
-        egui::Color32::from_rgb(60, 120, 255);
-    visuals.selection.stroke = egui::Stroke::new(
-        1.0,
-        egui::Color32::from_rgb(160, 210, 255),
-    );
+    visuals.selection.bg_fill = egui::Color32::from_rgb(60, 120, 255);
+    visuals.selection.stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(160, 210, 255));
     visuals.hyperlink_color = egui::Color32::from_rgb(120, 200, 255);
 
     // Subtle window shadow for depth

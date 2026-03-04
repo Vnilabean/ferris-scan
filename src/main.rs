@@ -31,7 +31,7 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use ferris_scan::{Node, Scanner, ScanReport, SharedProgress};
+use ferris_scan::{Node, ScanReport, Scanner, SharedProgress};
 use ratatui::{
     backend::{Backend, CrosstermBackend},
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -41,8 +41,7 @@ use ratatui::{
     Frame, Terminal,
 };
 use std::{
-    env,
-    io,
+    env, io,
     path::PathBuf,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -98,7 +97,7 @@ impl App {
             if let AppState::ViewingResults(ref root, _) = self.state {
                 let output_path = self.scan_path.with_file_name("ferris-scan-export.csv");
                 let scanner = Scanner::new();
-                
+
                 match scanner.export_csv(root, &output_path) {
                     Ok(_) => {
                         self.show_popup(format!(
@@ -279,7 +278,7 @@ fn ui(f: &mut Frame, app: &App) {
 
 fn render_header(f: &mut Frame, area: Rect, app: &App) {
     let title = format!("ferris-scan v0.1.0 | {}", app.scan_path.display());
-    
+
     #[cfg(feature = "pro")]
     let version_tag = " [PRO] ";
     #[cfg(not(feature = "pro"))]
@@ -298,10 +297,7 @@ fn render_header(f: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_scanning(f: &mut Frame, area: Rect, app: &App) {
-    let files = app
-        .shared_progress
-        .files_scanned
-        .load(Ordering::Relaxed);
+    let files = app.shared_progress.files_scanned.load(Ordering::Relaxed);
     let last_path = app
         .shared_progress
         .last_path
@@ -352,7 +348,7 @@ fn render_results(f: &mut Frame, area: Rect, root: &Node, report: &ScanReport) {
     for child in root.children.iter().take(20) {
         let size_str = format_size(child.size);
         let type_indicator = if child.is_dir { "📁" } else { "📄" };
-        
+
         items.push(ListItem::new(Line::from(vec![
             Span::raw(format!("{} {:<47}", type_indicator, child.name)),
             Span::styled(
@@ -376,13 +372,28 @@ fn render_results(f: &mut Frame, area: Rect, root: &Node, report: &ScanReport) {
 fn render_footer(f: &mut Frame, area: Rect, app: &App) {
     let key_hints = match &app.state {
         AppState::Scanning => vec![
-            Span::styled("Q", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "Q",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" Quit "),
         ],
         AppState::ViewingResults(_, _) => vec![
-            Span::styled("E", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "E",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" Export "),
-            Span::styled("Q", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "Q",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" Quit "),
         ],
     };
